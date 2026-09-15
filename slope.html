@@ -862,6 +862,7 @@ function startRun(){
   ball.y = heightAt(0) + CFG.BALL_R;
   run.speed = CFG.START_SPEED; run.dist=0; run.orbs=0;
   run.cause=''; run.dieT=0; run.flash=0; run.nextMark=500;
+  clearInput();            /* never carry a held key into a fresh run */
   cam.x=0; cam.z=-CFG.CAM_DIST; cam.y=heightAt(cam.z)+CFG.CAM_HEIGHT;
   cam.yaw=0; cam.roll=0; cam.shake=0; cam.shx=0; cam.shy=0;
   state = STATE.PLAY;
@@ -1110,7 +1111,14 @@ function updateHud(dt){
 }
 
 /* ------------------------------ input ------------------------------------ */
+function clearInput(){
+  input.left = false; input.right = false; input.pointer = 0;
+  for(var id in activePointers) delete activePointers[id];
+  byId('tl').classList.remove('hit'); byId('tr').classList.remove('hit');
+}
+
 window.addEventListener('keydown', function(e){
+  if(!e.key) return;
   var k = e.key.toLowerCase();
   if(k==='arrowleft' || k==='a'){ input.left = true; e.preventDefault(); }
   if(k==='arrowright'|| k==='d'){ input.right= true; e.preventDefault(); }
@@ -1127,6 +1135,7 @@ window.addEventListener('keydown', function(e){
   if(k==='m') toggleMute();
 });
 window.addEventListener('keyup', function(e){
+  if(!e.key) return;
   var k = e.key.toLowerCase();
   if(k==='arrowleft' || k==='a') input.left = false;
   if(k==='arrowright'|| k==='d') input.right= false;
@@ -1168,6 +1177,7 @@ if(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
 function pause(){
   if(state !== STATE.PLAY) return;
   state = STATE.PAUSE;
+  clearInput();            /* the keyup for a held key never arrives once we blur */
   rumbleStop();
   show('paused', true);
   hud.classList.remove('on');
@@ -1175,6 +1185,7 @@ function pause(){
 function resume(){
   if(state !== STATE.PAUSE) return;
   state = STATE.PLAY;
+  clearInput();
   show('paused', false);
   hud.classList.add('on');
   audioResume(); rumbleStart();
@@ -1182,6 +1193,7 @@ function resume(){
 }
 function quitRun(){
   state = STATE.MENU;
+  clearInput();
   rumbleStop();
   resetTrack();
   ball.x=0; ball.z=0; ball.dead=false; ball.falling=false;
@@ -1195,15 +1207,23 @@ function toggleMute(){
   byId('sound').innerHTML = muted ? '&#128263;' : '&#128266;';
 }
 
-byId('playBtn').addEventListener('click',   function(){ audioInit(); audioResume(); startRun(); });
-byId('againBtn').addEventListener('click',  function(){ startRun(); });
-byId('menuBtn').addEventListener('click',   quitRun);
-byId('resumeBtn').addEventListener('click', resume);
-byId('quitBtn').addEventListener('click',   quitRun);
+function onBtn(id, fn){
+  byId(id).addEventListener('click', function(e){
+    e.currentTarget.blur();   /* otherwise Space re-clicks the focused button too */
+    fn();
+  });
+}
+onBtn('playBtn',   function(){ audioInit(); audioResume(); startRun(); });
+onBtn('againBtn',  function(){ startRun(); });
+onBtn('menuBtn',   quitRun);
+onBtn('resumeBtn', resume);
+onBtn('quitBtn',   quitRun);
 byId('sound').addEventListener('click',     function(e){ e.stopPropagation(); audioInit(); toggleMute(); });
 
-document.addEventListener('visibilitychange', function(){ if(document.hidden) pause(); });
-window.addEventListener('blur', function(){ pause(); });
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden){ pause(); clearInput(); }
+});
+window.addEventListener('blur', function(){ pause(); clearInput(); });
 
 /* ------------------------------ main loop --------------------------------- */
 var last = 0;
