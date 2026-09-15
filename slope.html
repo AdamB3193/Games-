@@ -35,10 +35,20 @@
 
   /* ---------- Screens ---------- */
   .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
-    justify-content:center;gap:18px;text-align:center;padding:26px;
+    justify-content:flex-start;overflow-y:auto;gap:18px;text-align:center;padding:26px;
     background:radial-gradient(ellipse at 50% 42%,rgba(10,22,48,.55),rgba(3,5,12,.92));
     backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:5}
+  /* auto margins centre the content but still let it scroll when it does not fit */
+  .screen::before,.screen::after{content:'';flex:0 0 auto}
+  .screen::before{margin-top:auto}
+  .screen::after{margin-bottom:auto}
+  .screen>*{flex:0 0 auto;max-width:100%}
   .screen.hidden{display:none}
+  @media (max-height:560px){
+    h1{font-size:clamp(30px,8vh,52px)}
+    .screen{gap:10px;padding:16px}
+    .keys{display:none}
+  }
   h1{font-size:clamp(46px,13vw,104px);font-weight:900;letter-spacing:.06em;line-height:.92;
     background:linear-gradient(180deg,#eafcff 12%,#49e2ff 52%,#1b6bff 100%);
     -webkit-background-clip:text;background-clip:text;color:transparent;
@@ -90,6 +100,9 @@
     text-shadow:0 0 20px rgba(120,255,190,.6);opacity:0;transition:opacity .3s;pointer-events:none}
   #toast.on{opacity:1}
   #flash{position:absolute;inset:0;background:#ff2f55;opacity:0;pointer-events:none;z-index:3}
+  #oops{display:none;position:absolute;left:0;right:0;top:0;z-index:99;
+    background:#7a0b22;color:#fff;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;
+    padding:10px 14px;text-align:left;word-break:break-word}
   #sound{position:absolute;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
     z-index:6;pointer-events:auto;cursor:pointer;width:38px;height:38px;border-radius:50%;
     background:rgba(8,16,32,.55);border:1px solid rgba(110,225,255,.24);color:#9fe6ff;
@@ -101,6 +114,7 @@
 <div id="wrap">
   <canvas id="game"></canvas>
   <div id="flash"></div>
+  <div id="oops"></div>
 
   <div id="hud">
     <div class="panel" id="score"><div class="lbl">Distance</div><div class="val">0<span style="font-size:15px;color:#5d8ba6"> m</span></div></div>
@@ -159,6 +173,17 @@
 <script>
 (function(){
 'use strict';
+
+/* If anything throws, say so on screen. A silent failure looks exactly like
+   "I clicked Play and nothing happened", which is impossible to report. */
+window.addEventListener('error', function(e){
+  var el = document.getElementById('oops');
+  if(el){
+    el.textContent = 'Error: ' + ((e && e.message) || 'unknown') +
+                     '  \u2014 please send me this message.';
+    el.style.display = 'block';
+  }
+});
 
 /* ==========================================================================
    SLOPE — a single-file endless downhill runner.
@@ -278,6 +303,14 @@ function clipNear(poly){
     }
   }
   return out;
+}
+
+/* ctx.ellipse is missing on some older canvas implementations */
+function ellip(x,y,rx,ry,rot){
+  if(ctx.ellipse){ ctx.ellipse(x,y,rx,ry,rot,0,6.2832); return; }
+  ctx.save(); ctx.translate(x,y); ctx.rotate(rot||0);
+  ctx.scale(Math.max(rx,0.0001), Math.max(ry,0.0001));
+  ctx.arc(0,0,1,0,6.2832); ctx.restore();
 }
 
 var _p = [0,0];
@@ -670,7 +703,7 @@ function drawBall(b){
       var sr = (focal*CFG.BALL_R)/bq[0][2];
       ctx.save(); ctx.globalAlpha = 0.42;
       ctx.fillStyle = '#04070f';
-      ctx.beginPath(); ctx.ellipse(_p[0],_p[1]+sr*0.12, sr*1.15, sr*0.42, cam.roll, 0, 6.2832);
+      ctx.beginPath(); ellip(_p[0],_p[1]+sr*0.12, sr*1.15, sr*0.42, cam.roll);
       ctx.fill(); ctx.restore();
     }
   }
@@ -704,7 +737,7 @@ function drawBall(b){
     var off = Math.sin(ph)*r;
     var wq  = Math.abs(Math.cos(ph))*r*0.30 + 0.5;
     ctx.beginPath();
-    ctx.ellipse(px, py+off*0.55, r*1.05, wq, cam.roll, 0, 6.2832);
+    ellip(px, py+off*0.55, r*1.05, wq, cam.roll);
     ctx.fill();
   }
   ctx.restore();
@@ -781,7 +814,19 @@ function audioInit(){
     master.connect(AC.destination);
   }catch(e){ AC = null; }
 }
-function audioResume(){ if(AC && AC.state === 'suspended') AC.resume()['catch'](function(){}); }
+function audioResume(){
+  /* Safari returns undefined from resume() instead of a Promise, and an
+     AudioContext can refuse to start for reasons that have nothing to do with
+     the game. Audio is optional: never let it escape and kill the caller. */
+  if(!AC) return;
+  try{
+    if(AC.state === 'suspended'){
+      var p = AC.resume();
+      if(p && typeof p['catch'] === 'function') p['catch'](function(){});
+    }
+  }catch(e){}
+}
+function audioStart(){ try{ audioInit(); audioResume(); rumbleStart(); }catch(e){} }
 
 function blip(freq, dur, type, vol, sweep){
   if(!AC || muted) return;
@@ -868,7 +913,7 @@ function startRun(){
   state = STATE.PLAY;
   show('menu',false); show('over',false); show('paused',false);
   hud.classList.add('on');
-  audioInit(); audioResume(); rumbleStart();
+  audioStart();
 }
 
 function die(cause){
@@ -1188,7 +1233,7 @@ function resume(){
   clearInput();
   show('paused', false);
   hud.classList.add('on');
-  audioResume(); rumbleStart();
+  audioStart();
   last = perfNow();
 }
 function quitRun(){
@@ -1213,12 +1258,24 @@ function onBtn(id, fn){
     fn();
   });
 }
-onBtn('playBtn',   function(){ audioInit(); audioResume(); startRun(); });
+onBtn('playBtn',   function(){ startRun(); });
 onBtn('againBtn',  function(){ startRun(); });
 onBtn('menuBtn',   quitRun);
 onBtn('resumeBtn', resume);
 onBtn('quitBtn',   quitRun);
-byId('sound').addEventListener('click',     function(e){ e.stopPropagation(); audioInit(); toggleMute(); });
+byId('sound').addEventListener('click', function(e){
+  e.stopPropagation();
+  try{ audioInit(); }catch(err){}
+  toggleMute();
+});
+
+function tapToStart(id){
+  byId(id).addEventListener('click', function(e){
+    if(e.target && e.target.closest && e.target.closest('button')) return;
+    startRun();
+  });
+}
+tapToStart('menu'); tapToStart('over');
 
 document.addEventListener('visibilitychange', function(){
   if(document.hidden){ pause(); clearInput(); }
