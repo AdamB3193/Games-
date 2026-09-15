@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#05060d">
+<title>Slope — Endless Downhill Runner</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:#05060d;color:#e8f6ff;
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+  #wrap{position:fixed;inset:0}
+  canvas{position:absolute;inset:0;display:block;width:100%;height:100%}
+
+  /* ---------- HUD ---------- */
+  #hud{position:absolute;inset:0;pointer-events:none;
+    padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 0 18px;
+    display:flex;justify-content:space-between;align-items:flex-start;
+    opacity:0;transition:opacity .25s ease}
+  #hud.on{opacity:1}
+  .panel{background:rgba(8,14,28,.42);border:1px solid rgba(90,230,255,.18);
+    border-radius:12px;padding:8px 14px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .lbl{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#7ea6c4;font-weight:700}
+  .val{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-weight:700;line-height:1.05}
+  #score .val{font-size:34px;color:#7df9ff;text-shadow:0 0 18px rgba(80,240,255,.55)}
+  #hudRight{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  #best .val,#spd .val{font-size:17px;color:#b8ecff}
+  #mult{color:#ffd166;font-size:13px;font-weight:800;letter-spacing:.1em;
+    text-shadow:0 0 14px rgba(255,190,70,.6);opacity:0;transition:opacity .2s}
+  #mult.on{opacity:1}
+  #spdbar{width:118px;height:5px;border-radius:3px;background:rgba(120,200,255,.16);overflow:hidden;margin-top:6px}
+  #spdfill{height:100%;width:0%;border-radius:3px;
+    background:linear-gradient(90deg,#39e0ff,#8affc1 55%,#ffd166);transition:width .12s linear}
+
+  /* ---------- Screens ---------- */
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:18px;text-align:center;padding:26px;
+    background:radial-gradient(ellipse at 50% 42%,rgba(10,22,48,.55),rgba(3,5,12,.92));
+    backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:5}
+  .screen.hidden{display:none}
+  h1{font-size:clamp(46px,13vw,104px);font-weight:900;letter-spacing:.06em;line-height:.92;
+    background:linear-gradient(180deg,#eafcff 12%,#49e2ff 52%,#1b6bff 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 26px rgba(60,200,255,.45))}
+  h2{font-size:clamp(28px,8vw,52px);font-weight:900;letter-spacing:.08em;color:#ff5e7a;
+    text-shadow:0 0 26px rgba(255,70,110,.5)}
+  .sub{font-size:13px;letter-spacing:.32em;text-transform:uppercase;color:#6f96b4;font-weight:700}
+  .btn{pointer-events:auto;cursor:pointer;font:inherit;font-weight:800;letter-spacing:.14em;
+    text-transform:uppercase;font-size:14px;color:#061019;
+    background:linear-gradient(180deg,#8ff4ff,#25c7f0);border:0;border-radius:999px;
+    padding:15px 46px;box-shadow:0 0 30px rgba(50,200,255,.42),0 6px 20px rgba(0,0,0,.45);
+    transition:transform .12s ease,box-shadow .12s ease}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 0 44px rgba(80,220,255,.6),0 8px 24px rgba(0,0,0,.5)}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{background:transparent;color:#9fe6ff;border:1px solid rgba(110,225,255,.42);
+    box-shadow:none;padding:12px 30px;font-size:12px}
+  .btn.ghost:hover{background:rgba(70,200,255,.12);box-shadow:0 0 22px rgba(70,200,255,.25)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  .keys{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+  .key{display:flex;flex-direction:column;align-items:center;gap:7px}
+  .caps{display:flex;gap:5px}
+  kbd{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;
+    padding:0 9px;border-radius:7px;background:rgba(18,32,58,.85);
+    border:1px solid rgba(120,200,255,.3);border-bottom-width:3px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:700;color:#cfefff}
+  .key span{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#6d93b0;font-weight:700}
+  .stats{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin:2px 0 4px}
+  .stat{min-width:104px;background:rgba(9,18,36,.6);border:1px solid rgba(90,220,255,.16);
+    border-radius:12px;padding:12px 18px}
+  .stat b{display:block;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:26px;color:#7df9ff}
+  .stat i{font-style:normal;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#6d93b0;font-weight:700}
+  .stat.gold b{color:#ffd166}
+  #newBest{color:#ffd166;font-size:12px;letter-spacing:.3em;text-transform:uppercase;
+    font-weight:800;text-shadow:0 0 18px rgba(255,200,80,.6);animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .tip{font-size:11px;color:#5d7f9b;letter-spacing:.08em;max-width:440px;line-height:1.7}
+
+  /* ---------- Touch controls ---------- */
+  #touch{position:absolute;inset:auto 0 0 0;height:46%;display:none;z-index:4}
+  #touch div{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);
+    width:88px;height:88px;border-radius:50%;background:rgba(10,24,48,.4);
+    border:1px solid rgba(110,225,255,.28);display:flex;align-items:center;justify-content:center;
+    font-size:30px;color:#9fe6ff;pointer-events:auto}
+  #touch div.hit{background:rgba(60,200,255,.3)}
+  #tl{left:22px}#tr{right:22px}
+  body.touch #touch{display:block}
+  #toast{position:absolute;left:50%;top:22%;transform:translateX(-50%);z-index:6;
+    font-size:13px;font-weight:800;letter-spacing:.26em;text-transform:uppercase;color:#8affc1;
+    text-shadow:0 0 20px rgba(120,255,190,.6);opacity:0;transition:opacity .3s;pointer-events:none}
+  #toast.on{opacity:1}
+  #flash{position:absolute;inset:0;background:#ff2f55;opacity:0;pointer-events:none;z-index:3}
+  #sound{position:absolute;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+    z-index:6;pointer-events:auto;cursor:pointer;width:38px;height:38px;border-radius:50%;
+    background:rgba(8,16,32,.55);border:1px solid rgba(110,225,255,.24);color:#9fe6ff;
+    font-size:16px;display:flex;align-items:center;justify-content:center}
+  body.touch #sound{right:auto;left:50%;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+  <div id="flash"></div>
+
+  <div id="hud">
+    <div class="panel" id="score"><div class="lbl">Distance</div><div class="val">0<span style="font-size:15px;color:#5d8ba6"> m</span></div></div>
+    <div id="hudRight">
+      <div class="panel" id="best"><div class="lbl">Best</div><div class="val">0</div></div>
+      <div class="panel" id="spd"><div class="lbl">Speed</div><div class="val">0</div>
+        <div id="spdbar"><div id="spdfill"></div></div></div>
+      <div id="mult">x1</div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <div class="screen" id="menu">
+    <div class="sub">Endless Downhill Runner</div>
+    <h1>SLOPE</h1>
+    <p class="tip">Steer the ball down an infinite neon descent. Dodge the blocks, stay off the void, grab the orbs. It only gets faster.</p>
+    <button class="btn" id="playBtn">Play</button>
+    <div class="keys">
+      <div class="key"><div class="caps"><kbd>A</kbd><kbd>D</kbd></div><span>Steer</span></div>
+      <div class="key"><div class="caps"><kbd>&#8592;</kbd><kbd>&#8594;</kbd></div><span>Steer</span></div>
+      <div class="key"><div class="caps"><kbd>P</kbd></div><span>Pause</span></div>
+      <div class="key"><div class="caps"><kbd>M</kbd></div><span>Sound</span></div>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="over">
+    <h2>WIPEOUT</h2>
+    <div class="sub" id="overCause">You left the track</div>
+    <div class="stats">
+      <div class="stat"><b id="fScore">0</b><i>Distance</i></div>
+      <div class="stat"><b id="fOrbs">0</b><i>Orbs</i></div>
+      <div class="stat gold"><b id="fBest">0</b><i>Best</i></div>
+    </div>
+    <div id="newBest" style="display:none">New Record</div>
+    <div class="row">
+      <button class="btn" id="againBtn">Retry</button>
+      <button class="btn ghost" id="menuBtn">Menu</button>
+    </div>
+    <p class="tip">Press <kbd>Space</kbd> or <kbd>R</kbd> to drop in again.</p>
+  </div>
+
+  <div class="screen hidden" id="paused">
+    <div class="sub">Paused</div>
+    <h1 style="font-size:clamp(34px,9vw,64px)">HOLD UP</h1>
+    <div class="row">
+      <button class="btn" id="resumeBtn">Resume</button>
+      <button class="btn ghost" id="quitBtn">Quit Run</button>
+    </div>
+  </div>
+
+  <div id="touch"><div id="tl">&#9664;</div><div id="tr">&#9654;</div></div>
+  <button id="sound" title="Toggle sound (M)">&#128266;</button>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ==========================================================================
+   SLOPE — a single-file endless downhill runner.
+   Everything (3D pipeline, track generator, physics, audio) is hand-rolled
+   on a 2D canvas: no libraries, no assets, no network.
+   ========================================================================== */
+
+/* ------------------------------ tuning ---------------------------------- */
+var CFG = {
+  ROW_DZ:        2.2,     // world depth of one track row
+  ROWS_AHEAD:    104,     // rows kept in front of the camera
+  ROWS_BEHIND:   8,
+  BASE_SLOPE:    0.42,    // tan(descent angle) — camera pitches to match
+  FOV:           70,      // vertical field of view, degrees
+  NEAR:          0.45,
+
+  BALL_R:        0.95,
+  START_SPEED:   26,
+  MAX_SPEED:     78,
+  ACCEL:         0.62,    // units/s added per second
+  SIDE_ACCEL:    92,
+  SIDE_MAX:      30,
+  SIDE_DAMP:     5.2,
+
+  CAM_DIST:      9.6,
+  CAM_HEIGHT:    4.35,
+  LIP:           0.85,    // depth of the track's side wall
+  FOG_START:     40,
+  FOG_END:       215,
+
+  HW_START:      11.0,    // track half-width at the top
+  HW_MIN:        6.6,     // ...and once it is fully ramped up
+  RAMP:          2600     // metres over which difficulty maxes out
+};
+
+var COL = {
+  sky0:[3,6,16], sky1:[10,22,52], sky2:[26,54,104],
+  fog:[9,17,38],
+  deckA:[30,48,92], deckB:[22,37,74],
+  edge:[104,238,255], lip:[10,16,34],
+  block:[255,62,96], blockTop:[255,150,170], blockSide:[168,28,58],
+  orb:[255,209,102], ball:[124,250,215]
+};
+
+/* ------------------------------ helpers --------------------------------- */
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function rnd(a,b){ return a+Math.random()*(b-a); }
+function rndInt(a,b){ return Math.floor(a+Math.random()*(b-a+1)); }
+function chance(p){ return Math.random()<p; }
+function rgb(c){ return 'rgb('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+')'; }
+function rgba(c,a){ return 'rgba('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+','+a+')'; }
+function mix(a,b,t,out){
+  out = out || [0,0,0];
+  out[0]=a[0]+(b[0]-a[0])*t; out[1]=a[1]+(b[1]-a[1])*t; out[2]=a[2]+(b[2]-a[2])*t;
+  return out;
+}
+
+/* ------------------------------ canvas ---------------------------------- */
+var canvas = document.getElementById('game');
+var ctx    = canvas.getContext('2d', {alpha:false});
+var W=0, H=0, DPR=1, CX=0, CY=0, focal=600;
+
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.round(W*DPR); canvas.height = Math.round(H*DPR);
+  canvas.style.width = W+'px'; canvas.style.height = H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  CX = W*0.5; CY = H*0.5;
+  focal = (H*0.5) / Math.tan(CFG.FOV*Math.PI/360);
+  buildStars();
+}
+window.addEventListener('resize', resize);
+
+/* ------------------------- camera & projection --------------------------- */
+var cam = {x:0,y:0,z:0, yaw:0, pitch:Math.atan(CFG.BASE_SLOPE), roll:0, shake:0, shx:0, shy:0};
+var cy_=1, sy_=0, cp_=1, sp_=0, cr_=1, sr_=0;
+
+function camTrig(){
+  cy_=Math.cos(cam.yaw);   sy_=Math.sin(cam.yaw);
+  cp_=Math.cos(cam.pitch); sp_=Math.sin(cam.pitch);
+  cr_=Math.cos(cam.roll);  sr_=Math.sin(cam.roll);
+}
+
+/* world -> camera space (yaw, then pitch) */
+function toCam(x,y,z,out){
+  var dx=x-cam.x, dy=y-cam.y, dz=z-cam.z;
+  var x1 = dx*cy_ - dz*sy_;
+  var z1 = dx*sy_ + dz*cy_;
+  out[0] = x1;
+  out[1] = dy*cp_ + z1*sp_;
+  out[2] = -dy*sp_ + z1*cp_;
+  return out;
+}
+/* camera space -> screen (perspective + roll + shake) */
+function proj(p,out){
+  var iz = focal/p[2];
+  var x = p[0]*iz, y = -p[1]*iz;
+  out[0] = CX + (x*cr_ - y*sr_) + cam.shx;
+  out[1] = CY + (x*sr_ + y*cr_) + cam.shy;
+  return out;
+}
+
+/* Sutherland-Hodgman clip of a camera-space polygon against the near plane */
+var clipBuf = [];
+function clipNear(poly){
+  var out = clipBuf; out.length = 0;
+  var n = poly.length, N = CFG.NEAR;
+  for(var i=0;i<n;i++){
+    var a = poly[i], b = poly[(i+1)%n];
+    var ain = a[2] >= N, bin = b[2] >= N;
+    if(ain) out.push(a);
+    if(ain !== bin){
+      var t = (N-a[2])/(b[2]-a[2]);
+      out.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, N]);
+    }
+  }
+  return out;
+}
+
+var _p = [0,0];
+function polyPath(poly){
+  var c = clipNear(poly);
+  if(c.length < 3) return false;
+  proj(c[0],_p); ctx.beginPath(); ctx.moveTo(_p[0],_p[1]);
+  for(var i=1;i<c.length;i++){ proj(c[i],_p); ctx.lineTo(_p[0],_p[1]); }
+  ctx.closePath();
+  return true;
+}
+function fillPoly(poly, style){
+  if(polyPath(poly)){ ctx.fillStyle = style; ctx.fill(); }
+}
+
+/* ------------------------------ the track -------------------------------- */
+/* A row is a cross-section of the deck. Quads are built between neighbours.
+   Holes are stored separately and subtracted from the deck at draw + collide
+   time, so a hole can straddle any number of rows.                           */
+var track = {
+  rows:[], first:0,
+  holes:[], blocks:[], orbs:[],
+  gen:{ curve:0, tCurve:0, hw:CFG.HW_START, tHw:CFG.HW_START, next:0, lastCx:0 }
+};
+
+function heightAt(z){
+  return -z*CFG.BASE_SLOPE
+       + Math.sin(z*0.0310)*1.65
+       + Math.sin(z*0.0117+2.3)*1.10
+       + Math.sin(z*0.0061+0.7)*2.20;
+}
+function difficulty(z){ return clamp(z/CFG.RAMP, 0, 1); }
+
+function resetTrack(){
+  track.rows.length=0; track.holes.length=0; track.blocks.length=0; track.orbs.length=0;
+  track.first = -CFG.ROWS_BEHIND;
+  var g = track.gen;
+  g.curve=0; g.tCurve=0; g.hw=CFG.HW_START; g.tHw=CFG.HW_START;
+  g.next = 26; g.lastCx = 0;
+  for(var i=track.first; i<CFG.ROWS_AHEAD; i++) track.rows.push(makeRow(i));
+}
+
+function makeRow(i){
+  var g = track.gen, z = i*CFG.ROW_DZ;
+  if(i >= g.next) planSection(i, z);
+  g.curve = lerp(g.curve, g.tCurve, 0.045);
+  g.hw    = lerp(g.hw,    g.tHw,    0.040);
+  g.lastCx += g.curve*CFG.ROW_DZ;
+  return { i:i, z:z, cx:g.lastCx, y:heightAt(z), hw:g.hw };
+}
+
+/* Chooses what the next stretch of track looks like and seeds its hazards. */
+function planSection(i, z){
+  var g = track.gen, d = difficulty(z);
+  var len = rndInt(16, 30);
+  g.next = i + len;
+
+  /* curvature + width targets */
+  var cMax = lerp(0.055, 0.155, d);
+  g.tCurve = chance(0.24) ? 0 : rnd(-cMax, cMax);
+  g.tHw    = clamp(lerp(CFG.HW_START, CFG.HW_MIN, d) + rnd(-1.3, 1.6), 5.6, 13);
+
+  if(z < 60) return;                       // a calm run-in before the first hazard
+
+  var hw = g.tHw;
+  var z0 = z + CFG.ROW_DZ*3, z1 = z + len*CFG.ROW_DZ;
+  var roll = Math.random();
+
+  if(roll < 0.30){                          /* scattered blocks */
+    var n = rndInt(2, 2 + Math.round(d*4));
+    for(var k=0;k<n;k++)
+      addBlock(rnd(z0,z1), rnd(-hw+1.6, hw-1.6), rnd(2.0,4.2));
+
+  } else if(roll < 0.48){                   /* a wall with one doorway */
+    var gapW = lerp(6.2, 4.0, d);
+    var gapX = rnd(-hw+gapW*0.55, hw-gapW*0.55);
+    var wz   = rnd(z0, z1-CFG.ROW_DZ);
+    var lw   = (gapX-gapW/2) - (-hw);
+    var rw   = hw - (gapX+gapW/2);
+    if(lw > 1.2) addBlock(wz, -hw + lw/2, lw);
+    if(rw > 1.2) addBlock(wz,  hw - rw/2, rw);
+    trailOrbs(wz+3, gapX, 4);
+
+  } else if(roll < 0.66){                   /* a slalom of alternating blocks */
+    var side = chance(0.5) ? 1 : -1, steps = rndInt(3,5);
+    for(var s=0;s<steps;s++){
+      var sz = z0 + (z1-z0)*(s/steps);
+      addBlock(sz, side*rnd(hw*0.25, hw*0.66), rnd(2.4,4.0));
+      side = -side;
+    }
+
+  } else if(roll < 0.82){                   /* a hole punched through the deck */
+    var hz0 = z0 + rnd(0,4), hz1 = hz0 + rnd(7, 13 + d*10);
+    if(chance(0.5)){                        /* edge-hugging void */
+      var sgn = chance(0.5) ? 1 : -1;
+      addHole(hz0, hz1, sgn>0 ? hw-rnd(3.4,5.4) : -hw, sgn>0 ? hw : -hw+rnd(3.4,5.4));
+      trailOrbs(hz0+2, -sgn*hw*0.5, 4);
+    } else {                                /* central chasm, pass on either side */
+      var cwHalf = rnd(2.0, 2.4+d*1.5);
+      var cxh = rnd(-hw*0.3, hw*0.3);
+      addHole(hz0, hz1, cxh-cwHalf, cxh+cwHalf);
+    }
+
+  } else {                                  /* breather + reward line */
+    trailOrbs(z0+2, rnd(-hw*0.55, hw*0.55), rndInt(4,7));
+  }
+}
+
+function addBlock(z, x, w){
+  track.blocks.push({ z:z, x:x, w:w, h:rnd(2.0,2.8), d:2.2 });
+}
+function addHole(z0,z1,x0,x1){
+  track.holes.push({ z0:z0, z1:z1, x0:Math.min(x0,x1), x1:Math.max(x0,x1),
+                     c:(x0+x1)/2 });
+  track.holes.sort(function(a,b){ return a.c-b.c; });
+}
+function trailOrbs(z, x, n){
+  for(var k=0;k<n;k++) track.orbs.push({ z:z+k*3.0, x:x, got:false, t:Math.random()*6.28 });
+}
+
+/* keep the row window glued to the camera and drop anything behind us */
+function streamTrack(zc){
+  var want = Math.floor(zc/CFG.ROW_DZ) - CFG.ROWS_BEHIND;
+  while(track.first < want){ track.rows.shift(); track.first++; }
+  var head = track.first + track.rows.length;
+  var need = Math.floor(zc/CFG.ROW_DZ) + CFG.ROWS_AHEAD;
+  while(head < need){ track.rows.push(makeRow(head)); head++; }
+
+  var cut = zc - 30;
+  while(track.holes.length  && track.holes[0].z1  < cut) track.holes.shift();
+  var i;
+  for(i=track.blocks.length-1;i>=0;i--) if(track.blocks[i].z < cut) track.blocks.splice(i,1);
+  for(i=track.orbs.length-1;  i>=0;i--) if(track.orbs[i].z   < cut) track.orbs.splice(i,1);
+}
+
+function rowAt(i){
+  var k = i - track.first;
+  return (k>=0 && k<track.rows.length) ? track.rows[k] : null;
+}
+/* interpolated cross-section at an arbitrary depth */
+var _sec = {cx:0, hw:CFG.HW_START, y:0};
+function sectionAt(z){
+  var f = z/CFG.ROW_DZ, i = Math.floor(f), t = f-i;
+  var a = rowAt(i), b = rowAt(i+1);
+  if(!a) a = b; if(!b) b = a;
+  if(!a){ _sec.cx=0; _sec.hw=CFG.HW_START; _sec.y=heightAt(z); return _sec; }
+  _sec.cx = lerp(a.cx, b.cx, t);
+  _sec.hw = lerp(a.hw, b.hw, t);
+  _sec.y  = heightAt(z);
+  return _sec;
+}
+function holeAt(z, x){   /* x is track-relative */
+  for(var i=0;i<track.holes.length;i++){
+    var h = track.holes[i];
+    if(z>=h.z0 && z<=h.z1 && x>h.x0 && x<h.x1) return h;
+  }
+  return null;
+}
+
+/* ============================== rendering ================================ */
+
+/* stars, regenerated on resize */
+var stars = [];
+function buildStars(){
+  stars.length = 0;
+  var n = Math.round((W*H)/9000);
+  for(var i=0;i<n;i++)
+    stars.push({ x:Math.random()*1.6-0.3, y:Math.random()*0.62,
+                 r:Math.random()*1.3+0.25, a:Math.random()*0.55+0.2 });
+}
+
+function drawSky(){
+  var g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,    rgb(COL.sky0));
+  g.addColorStop(0.42, rgb(COL.sky1));
+  g.addColorStop(1,    rgb(COL.sky2));
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  /* everything behind the horizon banks with the camera */
+  ctx.save();
+  ctx.translate(CX+cam.shx, CY+cam.shy);
+  ctx.rotate(cam.roll);
+  ctx.translate(-CX, -CY);
+
+  var px = -cam.yaw*focal;                     /* parallax with camera yaw */
+  var i, s;
+  for(i=0;i<stars.length;i++){
+    s = stars[i];
+    var sx = ((s.x*W + px*0.35) % (W*1.6) + W*1.6) % (W*1.6) - W*0.3;
+    ctx.globalAlpha = s.a;
+    ctx.fillStyle = '#cfefff';
+    ctx.fillRect(sx, s.y*H, s.r, s.r);
+  }
+  ctx.globalAlpha = 1;
+
+  /* the track's vanishing point sits exactly on CY — put the glow there */
+  var hg = ctx.createRadialGradient(CX+px*0.6, CY, 0, CX+px*0.6, CY, Math.max(W,H)*0.55);
+  hg.addColorStop(0,  'rgba(90,200,255,0.38)');
+  hg.addColorStop(0.35,'rgba(50,130,220,0.15)');
+  hg.addColorStop(1,  'rgba(0,0,0,0)');
+  ctx.fillStyle = hg; ctx.fillRect(-W*0.5,0,W*2,H);
+
+  /* haze band along the horizon */
+  var bg = ctx.createLinearGradient(0, CY-H*0.14, 0, CY+H*0.1);
+  bg.addColorStop(0,'rgba(20,60,120,0)');
+  bg.addColorStop(0.55, rgba(COL.fog,0.85));
+  bg.addColorStop(1,'rgba(10,20,44,0)');
+  ctx.fillStyle = bg; ctx.fillRect(-W*0.5, CY-H*0.14, W*2, H*0.24);
+  ctx.restore();
+}
+
+/* --- deck ---------------------------------------------------------------- */
+/* Cutting holes out of a row: every hole contributes exactly one cut, so two
+   neighbouring rows always yield the same number of spans and pair up 1:1.
+   A hole that has not started (or has ended) collapses to a zero-width cut. */
+var cutsA=[], cutsB=[], spansA=[], spansB=[], activeHoles=[], realCut=[];
+
+function collectHoles(z0,z1){
+  activeHoles.length = 0;
+  for(var i=0;i<track.holes.length;i++){
+    var h = track.holes[i];
+    if(h.z1 >= z0 && h.z0 <= z1) activeHoles.push(h);
+  }
+}
+function cutsAt(z, out){
+  out.length = 0;
+  for(var i=0;i<activeHoles.length;i++){
+    var h = activeHoles[i];
+    if(z>=h.z0 && z<=h.z1){ out.push(h.x0); out.push(h.x1); }
+    else                  { out.push(h.c);  out.push(h.c);  }
+  }
+}
+/* A hole that has not opened yet still splits the deck into two spans; those
+   interior boundaries are seams, not edges, and must not grow walls or rails.
+   realCut[i] says whether hole i is genuinely open across this pair of rows. */
+function realCuts(z0, z1, out){
+  out.length = 0;
+  for(var i=0;i<activeHoles.length;i++){
+    var h = activeHoles[i];
+    var wide = (h.x1-h.x0) > 0.02;
+    out.push(wide && ((z0>=h.z0 && z0<=h.z1) || (z1>=h.z0 && z1<=h.z1)));
+  }
+}
+function spansFrom(hw, cuts, out){
+  out.length = 0;
+  var cur = -hw;
+  for(var i=0;i<cuts.length;i+=2){
+    var a = clamp(cuts[i],-hw,hw), b = clamp(cuts[i+1],-hw,hw);
+    if(a < cur) a = cur;
+    if(b < cur) b = cur;
+    out.push(cur); out.push(a);
+    cur = b;
+  }
+  out.push(cur); out.push(hw < cur ? cur : hw);
+}
+
+var q4 = [[0,0,0],[0,0,0],[0,0,0],[0,0,0]];
+function quad(ax,ay,az, bx,by,bz, cx2,cy2,cz2, dx2,dy2,dz2, style){
+  toCam(ax,ay,az,  q4[0]); toCam(bx,by,bz,  q4[1]);
+  toCam(cx2,cy2,cz2,q4[2]); toCam(dx2,dy2,dz2,q4[3]);
+  fillPoly(q4, style);
+}
+
+var cTmp=[0,0,0];
+function fogT(z){ return clamp((z-cam.z-CFG.FOG_START)/(CFG.FOG_END-CFG.FOG_START), 0, 1); }
+
+function drawDeck(){
+  var lo = track.first, hi = track.first + track.rows.length - 2;
+  var camRow = Math.floor(cam.z/CFG.ROW_DZ);
+  if(lo < camRow-2) lo = camRow-2;
+
+  collectHoles(lo*CFG.ROW_DZ, (hi+2)*CFG.ROW_DZ);
+
+  for(var i=hi;i>=lo;i--){                     /* painter's algorithm: far -> near */
+    var a = rowAt(i), b = rowAt(i+1);
+    if(!a || !b) continue;
+
+    var f  = fogT(b.z);
+    if(f >= 1) continue;
+    var base = (i & 1) ? COL.deckA : COL.deckB;
+    var deck = rgb(mix(base, COL.fog, f, cTmp));
+    var near = (b.z - cam.z) < 78;
+
+    cutsAt(a.z, cutsA); cutsAt(b.z, cutsB);
+    spansFrom(a.hw, cutsA, spansA);
+    spansFrom(b.hw, cutsB, spansB);
+    realCuts(a.z, b.z, realCut);
+
+    var n = Math.min(spansA.length, spansB.length), nSp = n>>1;
+    for(var s=0, j=0; s<n; s+=2, j++){
+      var a0=spansA[s], a1=spansA[s+1], b0=spansB[s], b1=spansB[s+1];
+      if((a1-a0) < 0.02 && (b1-b0) < 0.02) continue;
+
+      quad(a.cx+a0, a.y, a.z,  a.cx+a1, a.y, a.z,
+           b.cx+b1, b.y, b.z,  b.cx+b0, b.y, b.z, deck);
+
+      if(near){
+        var lReal = (j === 0)      || realCut[j-1];
+        var rReal = (j === nSp-1)  || realCut[j];
+        var lipC = rgb(mix(COL.lip, COL.fog, f, cTmp));
+        var gl   = rgba(COL.edge, 0.8*(1-f));
+        var L = CFG.LIP, E = 0.26;
+
+        /* side walls give the deck thickness and make voids read as voids */
+        if(lReal){
+          quad(a.cx+a0, a.y, a.z,  b.cx+b0, b.y, b.z,
+               b.cx+b0, b.y-L, b.z, a.cx+a0, a.y-L, a.z, lipC);
+          quad(a.cx+a0, a.y+0.02, a.z, a.cx+a0+E, a.y+0.02, a.z,
+               b.cx+b0+E, b.y+0.02, b.z, b.cx+b0, b.y+0.02, b.z, gl);
+        }
+        if(rReal){
+          quad(a.cx+a1, a.y, a.z,  b.cx+b1, b.y, b.z,
+               b.cx+b1, b.y-L, b.z, a.cx+a1, a.y-L, a.z, lipC);
+          quad(a.cx+a1-E, a.y+0.02, a.z, a.cx+a1, a.y+0.02, a.z,
+               b.cx+b1, b.y+0.02, b.z, b.cx+b1-E, b.y+0.02, b.z, gl);
+        }
+      }
+    }
+
+    /* a lateral pulse every 10 rows for a sense of speed */
+    if((i % 10) === 0 && f < 0.92){
+      var pc = rgba(COL.edge, 0.13*(1-f));
+      quad(a.cx-a.hw, a.y+0.015, a.z, a.cx+a.hw, a.y+0.015, a.z,
+           b.cx+b.hw, b.y+0.015, b.z, b.cx-b.hw, b.y+0.015, b.z, pc);
+    }
+  }
+}
+
+/* --- props --------------------------------------------------------------- */
+var bq = [[0,0,0],[0,0,0],[0,0,0],[0,0,0]];
+function boxFace(x0,y0,z0,x1,y1,z1,x2,y2,z2,x3,y3,z3,style){
+  toCam(x0,y0,z0,bq[0]); toCam(x1,y1,z1,bq[1]);
+  toCam(x2,y2,z2,bq[2]); toCam(x3,y3,z3,bq[3]);
+  fillPoly(bq, style);
+}
+
+function drawBlock(o){
+  var sec = sectionAt(o.z);
+  var f = fogT(o.z); if(f>=1) return;
+  var x = sec.cx + o.x, y = sec.y, z = o.z;
+  var hw2 = o.w/2, hd = o.d/2, h = o.h;
+  var top  = rgb(mix(COL.blockTop, COL.fog, f, cTmp));
+  var side = rgb(mix(COL.blockSide,COL.fog, f, cTmp));
+  var frnt = rgb(mix(COL.block,    COL.fog, f, cTmp));
+
+  var sgn = (x < cam.x) ? 1 : -1;             /* the visible vertical side */
+  boxFace(x+sgn*hw2, y,   z-hd, x+sgn*hw2, y,   z+hd,
+          x+sgn*hw2, y+h, z+hd, x+sgn*hw2, y+h, z-hd, side);
+  boxFace(x-hw2, y+h, z-hd, x+hw2, y+h, z-hd,
+          x+hw2, y+h, z+hd, x-hw2, y+h, z+hd, top);
+  boxFace(x-hw2, y,   z-hd, x+hw2, y,   z-hd,
+          x+hw2, y+h, z-hd, x-hw2, y+h, z-hd, frnt);
+
+  if((z-cam.z) < 60){                          /* glowing seam along the top */
+    ctx.lineWidth = Math.max(1, 2.2*(1-f));
+    ctx.strokeStyle = rgba([255,190,205], 0.75*(1-f));
+    toCam(x-hw2,y+h,z-hd,bq[0]); toCam(x+hw2,y+h,z-hd,bq[1]);
+    toCam(x+hw2,y+h,z+hd,bq[2]); toCam(x-hw2,y+h,z+hd,bq[3]);
+    if(polyPath(bq)) ctx.stroke();
+  }
+}
+
+function drawOrb(o, time){
+  var sec = sectionAt(o.z);
+  var f = fogT(o.z); if(f>=1) return;
+  var bob = Math.sin(time*3 + o.t)*0.28;
+  toCam(sec.cx+o.x, sec.y+1.5+bob, o.z, bq[0]);
+  if(bq[0][2] < CFG.NEAR) return;
+  proj(bq[0], _p);
+  var r = (focal*0.62)/bq[0][2];
+  if(r < 0.6) return;
+  var a = 1-f;
+  var g = ctx.createRadialGradient(_p[0],_p[1],0,_p[0],_p[1],r*2.6);
+  g.addColorStop(0,  rgba([255,255,240], 0.95*a));
+  g.addColorStop(0.3,rgba(COL.orb, 0.75*a));
+  g.addColorStop(1,  rgba(COL.orb, 0));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(_p[0],_p[1], r*2.6, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = rgba([255,252,230], 0.95*a);
+  ctx.beginPath(); ctx.arc(_p[0],_p[1], r*0.62, 0, 6.2832); ctx.fill();
+}
+
+function drawBall(b){
+  var sec = sectionAt(b.z);
+  /* contact shadow, skipped while airborne over a void */
+  if(!b.falling){
+    toCam(b.x, sec.y+0.03, b.z, bq[0]);
+    if(bq[0][2] > CFG.NEAR){
+      proj(bq[0], _p);
+      var sr = (focal*CFG.BALL_R)/bq[0][2];
+      ctx.save(); ctx.globalAlpha = 0.42;
+      ctx.fillStyle = '#04070f';
+      ctx.beginPath(); ctx.ellipse(_p[0],_p[1]+sr*0.12, sr*1.15, sr*0.42, cam.roll, 0, 6.2832);
+      ctx.fill(); ctx.restore();
+    }
+  }
+
+  toCam(b.x, b.y, b.z, bq[0]);
+  if(bq[0][2] < CFG.NEAR) return;
+  proj(bq[0], _p);
+  var r = (focal*CFG.BALL_R)/bq[0][2];
+  var px=_p[0], py=_p[1];
+
+  var glow = ctx.createRadialGradient(px,py,r*0.4,px,py,r*2.4);
+  glow.addColorStop(0, rgba(COL.ball,0.34));
+  glow.addColorStop(1, rgba(COL.ball,0));
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(px,py,r*2.4,0,6.2832); ctx.fill();
+
+  var g = ctx.createRadialGradient(px-r*0.36, py-r*0.42, r*0.08, px, py, r*1.06);
+  g.addColorStop(0,   '#ffffff');
+  g.addColorStop(0.28, rgb(COL.ball));
+  g.addColorStop(0.75,'#1aa78f');
+  g.addColorStop(1,   '#07403c');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(px,py,r,0,6.2832); ctx.fill();
+
+  /* banded "rolling" shading, clipped to the sphere */
+  ctx.save();
+  ctx.beginPath(); ctx.arc(px,py,r,0,6.2832); ctx.clip();
+  ctx.globalAlpha = 0.34; ctx.fillStyle = '#06312f';
+  for(var k=0;k<3;k++){
+    var ph = b.spin + k*2.094;
+    var off = Math.sin(ph)*r;
+    var wq  = Math.abs(Math.cos(ph))*r*0.30 + 0.5;
+    ctx.beginPath();
+    ctx.ellipse(px, py+off*0.55, r*1.05, wq, cam.roll, 0, 6.2832);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = rgba([180,255,240],0.5); ctx.lineWidth = Math.max(1, r*0.05);
+  ctx.beginPath(); ctx.arc(px,py,r,0,6.2832); ctx.stroke();
+}
+
+/* --- particles ----------------------------------------------------------- */
+var parts = [];
+function spawnPart(x,y,z,vx,vy,vz,life,size,col){
+  if(parts.length > 260) return;
+  parts.push({x:x,y:y,z:z,vx:vx,vy:vy,vz:vz,life:life,max:life,size:size,col:col});
+}
+function updateParts(dt){
+  for(var i=parts.length-1;i>=0;i--){
+    var p = parts[i];
+    p.life -= dt;
+    if(p.life<=0 || p.z < cam.z-4){ parts.splice(i,1); continue; }
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt; p.vy -= 12*dt;
+  }
+}
+function drawParts(){
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for(var i=0;i<parts.length;i++){
+    var p = parts[i];
+    toCam(p.x,p.y,p.z,bq[0]);
+    if(bq[0][2] < CFG.NEAR) continue;
+    proj(bq[0], _p);
+    var r = (focal*p.size)/bq[0][2];
+    if(r < 0.3) continue;
+    ctx.globalAlpha = clamp(p.life/p.max,0,1)*0.85;
+    ctx.fillStyle = rgb(p.col);
+    ctx.beginPath(); ctx.arc(_p[0],_p[1],r,0,6.2832); ctx.fill();
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+
+/* --- speed streaks ------------------------------------------------------- */
+function drawStreaks(speed){
+  var t = clamp((speed-42)/(CFG.MAX_SPEED-42), 0, 1);
+  if(t <= 0.02) return;
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  ctx.strokeStyle = rgba([150,230,255], 0.16*t);
+  ctx.lineWidth = 2;
+  var n = Math.round(16*t);
+  for(var i=0;i<n;i++){
+    var ang = (i/n)*6.2832 + perfNow()*0.0012;
+    var rad = Math.min(W,H)*(0.30 + ((i*37)%100)/220);
+    var x0 = CX + Math.cos(ang)*rad, y0 = CY + Math.sin(ang)*rad;
+    var len = 40 + 110*t;
+    ctx.beginPath();
+    ctx.moveTo(x0,y0);
+    ctx.lineTo(x0 + Math.cos(ang)*len, y0 + Math.sin(ang)*len);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* =============================== audio =================================== */
+/* Everything is synthesised on the fly — no files, no network. */
+var AC=null, master=null, rumbleOsc=null, rumbleGain=null, rumbleFilt=null, muted=false;
+
+function audioInit(){
+  if(AC) return;
+  var Ctor = window.AudioContext || window.webkitAudioContext;
+  if(!Ctor) return;
+  try{
+    AC = new Ctor();
+    master = AC.createGain();
+    master.gain.value = muted ? 0 : 0.55;
+    master.connect(AC.destination);
+  }catch(e){ AC = null; }
+}
+function audioResume(){ if(AC && AC.state === 'suspended') AC.resume()['catch'](function(){}); }
+
+function blip(freq, dur, type, vol, sweep){
+  if(!AC || muted) return;
+  try{
+    var o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime;
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if(sweep) o.frequency.exponentialRampToValueAtTime(Math.max(30,sweep), t+dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol||0.25, t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t+dur+0.03);
+  }catch(e){}
+}
+function noiseBurst(dur, vol){
+  if(!AC || muted) return;
+  try{
+    var n = Math.floor(AC.sampleRate*dur);
+    var buf = AC.createBuffer(1, n, AC.sampleRate), d = buf.getChannelData(0);
+    for(var i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1 - i/n);
+    var src = AC.createBufferSource(); src.buffer = buf;
+    var f = AC.createBiquadFilter(); f.type='lowpass'; f.frequency.value=1400;
+    var g = AC.createGain(); g.gain.value = vol||0.4;
+    src.connect(f); f.connect(g); g.connect(master); src.start();
+  }catch(e){}
+}
+function rumbleStart(){
+  if(!AC || rumbleOsc) return;
+  try{
+    rumbleOsc  = AC.createOscillator();
+    rumbleGain = AC.createGain();
+    rumbleFilt = AC.createBiquadFilter();
+    rumbleOsc.type='sawtooth'; rumbleOsc.frequency.value=48;
+    rumbleFilt.type='lowpass'; rumbleFilt.frequency.value=320;
+    rumbleGain.gain.value = 0;
+    rumbleOsc.connect(rumbleFilt); rumbleFilt.connect(rumbleGain); rumbleGain.connect(master);
+    rumbleOsc.start();
+  }catch(e){ rumbleOsc=null; }
+}
+function rumbleStop(){
+  if(!rumbleOsc) return;
+  try{ rumbleOsc.stop(); rumbleOsc.disconnect(); }catch(e){}
+  rumbleOsc=null; rumbleGain=null; rumbleFilt=null;
+}
+function rumbleSet(speed){
+  if(!rumbleGain) return;
+  var t = clamp((speed-CFG.START_SPEED)/(CFG.MAX_SPEED-CFG.START_SPEED),0,1);
+  try{
+    rumbleGain.gain.value = 0.05 + t*0.10;
+    rumbleOsc.frequency.value = 42 + t*44;
+    rumbleFilt.frequency.value = 260 + t*520;
+  }catch(e){}
+}
+
+/* =============================== game ==================================== */
+var STATE = { MENU:0, PLAY:1, PAUSE:2, DYING:3, OVER:4 };
+var state = STATE.MENU;
+
+var ball = { x:0, y:0, z:0, vx:0, vy:0, spin:0, falling:false, dead:false };
+var run  = { speed:CFG.START_SPEED, dist:0, orbs:0, best:0, cause:'', dieT:0, flash:0, nextMark:500 };
+var input = { left:false, right:false, pointer:0 };
+
+function perfNow(){ return (window.performance && performance.now) ? performance.now() : Date.now(); }
+
+function loadBest(){
+  try{ run.best = parseInt(localStorage.getItem('slope.best')||'0',10) || 0; }catch(e){ run.best = 0; }
+}
+function saveBest(){
+  try{ localStorage.setItem('slope.best', String(run.best)); }catch(e){}
+}
+
+function startRun(){
+  resetTrack();
+  parts.length = 0;
+  ball.x=0; ball.z=0; ball.vx=0; ball.vy=0; ball.spin=0;
+  ball.falling=false; ball.dead=false;
+  ball.y = heightAt(0) + CFG.BALL_R;
+  run.speed = CFG.START_SPEED; run.dist=0; run.orbs=0;
+  run.cause=''; run.dieT=0; run.flash=0; run.nextMark=500;
+  cam.x=0; cam.z=-CFG.CAM_DIST; cam.y=heightAt(cam.z)+CFG.CAM_HEIGHT;
+  cam.yaw=0; cam.roll=0; cam.shake=0; cam.shx=0; cam.shy=0;
+  state = STATE.PLAY;
+  show('menu',false); show('over',false); show('paused',false);
+  hud.classList.add('on');
+  audioInit(); audioResume(); rumbleStart();
+}
+
+function die(cause){
+  if(state !== STATE.PLAY) return;
+  state = STATE.DYING;
+  run.cause = cause;
+  run.dieT = 0;
+  ball.dead = true;
+  rumbleStop();
+  if(cause === 'void'){
+    ball.falling = true; ball.vy = -2;
+    blip(300, 0.7, 'sine', 0.28, 45);
+  } else {
+    cam.shake = 16; run.flash = 1;
+    ball.vy = 7;
+    noiseBurst(0.35, 0.5);
+    blip(150, 0.4, 'square', 0.3, 50);
+    var sec = sectionAt(ball.z);
+    for(var i=0;i<34;i++)
+      spawnPart(ball.x, ball.y, ball.z,
+                rnd(-9,9), rnd(2,13), rnd(-10,2),
+                rnd(0.4,0.9), rnd(0.07,0.2),
+                chance(0.5)?COL.block:[255,190,120]);
+  }
+}
+
+function finishRun(){
+  state = STATE.OVER;
+  var d = Math.floor(run.dist);
+  var rec = d > run.best;
+  if(rec){ run.best = d; saveBest(); }
+  byId('fScore').textContent = d;
+  byId('fOrbs').textContent  = run.orbs;
+  byId('fBest').textContent  = run.best;
+  byId('newBest').style.display = rec ? 'block' : 'none';
+  byId('overCause').textContent =
+    run.cause === 'void' ? 'You fell into the void' : 'You hit a block';
+  hud.classList.remove('on');
+  show('over', true);
+  if(rec) blip(660,0.18,'triangle',0.3,990);
+}
+
+/* ---------------------------- simulation --------------------------------- */
+function update(dt, time){
+  if(state === STATE.PLAY){
+    run.speed = Math.min(CFG.MAX_SPEED, run.speed + CFG.ACCEL*dt);
+
+    var dir = (input.left?-1:0) + (input.right?1:0) + input.pointer;
+    dir = clamp(dir,-1,1);
+    ball.vx += dir*CFG.SIDE_ACCEL*dt;
+    ball.vx *= Math.exp(-CFG.SIDE_DAMP*dt);
+    ball.vx = clamp(ball.vx, -CFG.SIDE_MAX, CFG.SIDE_MAX);
+
+    ball.x += ball.vx*dt;
+    ball.z += run.speed*dt;
+    run.dist = ball.z;
+    ball.spin += (run.speed*dt)/CFG.BALL_R;
+
+    streamTrack(ball.z);
+
+    var sec = sectionAt(ball.z);
+    ball.y = sec.y + CFG.BALL_R;
+    var rel = ball.x - sec.cx;
+
+    /* --- off the edge, or over a hole --- */
+    var R = CFG.BALL_R*0.45;
+    if(Math.abs(rel) > sec.hw - R)               die('void');
+    else if(holeAt(ball.z, rel))                 die('void');
+
+    /* --- blocks --- */
+    if(state === STATE.PLAY){
+      for(var i=0;i<track.blocks.length;i++){
+        var o = track.blocks[i];
+        if(Math.abs(o.z - ball.z) < o.d*0.5 + CFG.BALL_R*0.8 &&
+           Math.abs(o.x - rel)    < o.w*0.5 + CFG.BALL_R*0.8){ die('block'); break; }
+      }
+    }
+
+    /* --- orbs --- */
+    for(var k=0;k<track.orbs.length;k++){
+      var q = track.orbs[k];
+      if(q.got) continue;
+      if(Math.abs(q.z-ball.z) < 1.7 && Math.abs(q.x-rel) < 1.7){
+        q.got = true; run.orbs++;
+        blip(880 + Math.min(run.orbs,12)*40, 0.13, 'triangle', 0.22);
+        for(var j=0;j<8;j++)
+          spawnPart(sec.cx+q.x, sec.y+1.5, q.z,
+                    rnd(-3,3), rnd(1,5), rnd(-2,2), rnd(0.25,0.5), 0.09, COL.orb);
+      }
+    }
+    for(var m=track.orbs.length-1;m>=0;m--) if(track.orbs[m].got) track.orbs.splice(m,1);
+
+    /* --- milestone --- */
+    if(run.dist >= run.nextMark){
+      run.nextMark += 500;
+      toast(Math.floor(run.dist/500)*500 + ' M');
+      blip(520,0.1,'triangle',0.2); blip(780,0.12,'triangle',0.18);
+    }
+
+    /* --- trail --- */
+    if(chance(0.85))
+      spawnPart(ball.x + rnd(-0.4,0.4), sec.y+0.15, ball.z - 0.7,
+                rnd(-1.4,1.4), rnd(0.4,2.4), -rnd(1,4),
+                rnd(0.25,0.5), rnd(0.05,0.12), COL.ball);
+
+    rumbleSet(run.speed);
+
+  } else if(state === STATE.DYING){
+    run.dieT += dt;
+    ball.z += run.speed*dt*(ball.falling ? 1 : 0.18);
+    run.speed *= Math.exp(-(ball.falling?0.4:5)*dt);
+    ball.x += ball.vx*dt; ball.vx *= Math.exp(-2*dt);
+    ball.vy -= 26*dt;
+    ball.y += ball.vy*dt;
+    ball.spin += dt*6;
+    streamTrack(ball.z);
+    if(run.dieT > (ball.falling ? 1.15 : 0.95)) finishRun();
+  }
+
+  updateParts(dt);
+  if(run.flash > 0) run.flash = Math.max(0, run.flash - dt*2.2);
+  flashEl.style.opacity = run.flash*0.45;
+
+  /* ---------------------------- camera ---------------------------------- */
+  if(state !== STATE.MENU){
+    var follow = 1 - Math.exp(-7*dt);
+    cam.z = ball.z - CFG.CAM_DIST;
+    var tSec = sectionAt(cam.z);
+    cam.x = lerp(cam.x, lerp(ball.x, tSec.cx, 0.22), follow);
+    var ty = heightAt(cam.z) + CFG.CAM_HEIGHT + (ball.falling ? 0 : 0);
+    cam.y = lerp(cam.y, ty, 1-Math.exp(-9*dt));
+
+    /* aim down the track: compare the section here with one well ahead */
+    var ahead = sectionAt(cam.z + 26);
+    var yawT  = Math.atan2(ahead.cx - cam.x, 26) * 0.75;
+    cam.yaw   = lerp(cam.yaw, yawT, 1-Math.exp(-5*dt));
+
+    var rollT = clamp(-(ahead.cx - tSec.cx)*0.012 - ball.vx*0.0022, -0.22, 0.22);
+    cam.roll  = lerp(cam.roll, rollT, 1-Math.exp(-4*dt));
+
+    var kick  = clamp((run.speed-CFG.START_SPEED)/(CFG.MAX_SPEED-CFG.START_SPEED),0,1);
+    cam.pitch = Math.atan(CFG.BASE_SLOPE) - kick*0.035;
+  } else {
+    /* slow idle fly-through behind the menu */
+    ball.z += 16*dt;
+    streamTrack(ball.z);
+    var s2 = sectionAt(ball.z);
+    ball.x = lerp(ball.x, s2.cx, 1-Math.exp(-2*dt));
+    ball.y = s2.y + CFG.BALL_R;
+    cam.z = ball.z - CFG.CAM_DIST;
+    var s3 = sectionAt(cam.z);
+    cam.x = lerp(cam.x, s3.cx, 1-Math.exp(-2*dt));
+    cam.y = heightAt(cam.z) + CFG.CAM_HEIGHT;
+    var ah = sectionAt(cam.z+26);
+    cam.yaw  = lerp(cam.yaw,  Math.atan2(ah.cx-cam.x,26)*0.75, 1-Math.exp(-3*dt));
+    cam.roll = lerp(cam.roll, clamp(-(ah.cx-s3.cx)*0.012,-0.2,0.2), 1-Math.exp(-3*dt));
+  }
+
+  if(cam.shake > 0){
+    cam.shake = Math.max(0, cam.shake - dt*36);
+    cam.shx = rnd(-1,1)*cam.shake; cam.shy = rnd(-1,1)*cam.shake;
+  } else { cam.shx = 0; cam.shy = 0; }
+
+  camTrig();
+}
+
+/* ------------------------------- draw ------------------------------------ */
+function render(time){
+  drawSky();
+  drawDeck();
+
+  /* props and the ball, sorted far to near */
+  var items = [];
+  var i;
+  for(i=0;i<track.blocks.length;i++){
+    var o = track.blocks[i];
+    if(o.z > cam.z-4) items.push([o.z, 0, o]);
+  }
+  for(i=0;i<track.orbs.length;i++){
+    var q = track.orbs[i];
+    if(q.z > cam.z-4) items.push([q.z, 1, q]);
+  }
+  if(!ball.dead || state === STATE.DYING) items.push([ball.z, 2, ball]);
+  items.sort(function(a,b){ return b[0]-a[0]; });
+
+  for(i=0;i<items.length;i++){
+    var it = items[i];
+    if(it[1] === 0)      drawBlock(it[2]);
+    else if(it[1] === 1) drawOrb(it[2], time);
+    else                 drawBall(it[2]);
+  }
+
+  drawParts();
+  if(state === STATE.PLAY) drawStreaks(run.speed);
+
+  /* vignette */
+  var vg = ctx.createRadialGradient(CX,CY,Math.min(W,H)*0.34, CX,CY,Math.max(W,H)*0.78);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,0.55)');
+  ctx.fillStyle = vg; ctx.fillRect(0,0,W,H);
+}
+
+/* ================================ UI ===================================== */
+function byId(id){ return document.getElementById(id); }
+var hud     = byId('hud');
+var flashEl = byId('flash');
+var toastEl = byId('toast');
+var scoreEl = byId('score').querySelector('.val');
+var bestEl  = byId('best').querySelector('.val');
+var spdEl   = byId('spd').querySelector('.val');
+var spdFill = byId('spdfill');
+var multEl  = byId('mult');
+
+function show(id, on){ byId(id).classList[on ? 'remove' : 'add']('hidden'); }
+
+var toastT = 0;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('on');
+  toastT = 1.5;
+}
+
+var hudAcc = 0;
+function updateHud(dt){
+  if(toastT > 0){
+    toastT -= dt;
+    if(toastT <= 0) toastEl.classList.remove('on');
+  }
+  hudAcc += dt;
+  if(hudAcc < 0.06) return;
+  hudAcc = 0;
+  var d = Math.floor(run.dist);
+  scoreEl.innerHTML = d + '<span style="font-size:15px;color:#5d8ba6"> m</span>';
+  bestEl.textContent = Math.max(run.best, d);
+  spdEl.textContent = Math.round(run.speed*3.1);
+  spdFill.style.width =
+    (clamp((run.speed-CFG.START_SPEED)/(CFG.MAX_SPEED-CFG.START_SPEED),0,1)*100).toFixed(0)+'%';
+  if(run.orbs > 0){ multEl.textContent = run.orbs + ' orbs'; multEl.classList.add('on'); }
+  else multEl.classList.remove('on');
+}
+
+/* ------------------------------ input ------------------------------------ */
+window.addEventListener('keydown', function(e){
+  var k = e.key.toLowerCase();
+  if(k==='arrowleft' || k==='a'){ input.left = true; e.preventDefault(); }
+  if(k==='arrowright'|| k==='d'){ input.right= true; e.preventDefault(); }
+  if(k===' ' || k==='enter'){
+    e.preventDefault();
+    if(state===STATE.MENU || state===STATE.OVER) startRun();
+    else if(state===STATE.PAUSE) resume();
+  }
+  if(k==='r' && (state===STATE.OVER || state===STATE.PLAY || state===STATE.PAUSE)) startRun();
+  if(k==='p' || k==='escape'){
+    if(state===STATE.PLAY) pause();
+    else if(state===STATE.PAUSE) resume();
+  }
+  if(k==='m') toggleMute();
+});
+window.addEventListener('keyup', function(e){
+  var k = e.key.toLowerCase();
+  if(k==='arrowleft' || k==='a') input.left = false;
+  if(k==='arrowright'|| k==='d') input.right= false;
+});
+
+/* pointer / touch: hold either half of the screen to steer that way */
+var activePointers = {};
+function pointerSteer(){
+  var l=0, r=0;
+  for(var id in activePointers){
+    if(activePointers[id] < 0) l = 1; else r = 1;
+  }
+  input.pointer = r - l;
+  byId('tl').classList[l?'add':'remove']('hit');
+  byId('tr').classList[r?'add':'remove']('hit');
+}
+function onDown(e){
+  if(e.target.closest && e.target.closest('button')) return;
+  activePointers[e.pointerId] = (e.clientX < W/2) ? -1 : 1;
+  pointerSteer();
+  if(state===STATE.MENU || state===STATE.OVER){ /* tap-to-start handled by buttons */ }
+}
+function onMove(e){
+  if(!(e.pointerId in activePointers)) return;
+  activePointers[e.pointerId] = (e.clientX < W/2) ? -1 : 1;
+  pointerSteer();
+}
+function onUp(e){ delete activePointers[e.pointerId]; pointerSteer(); }
+canvas.addEventListener('pointerdown', onDown);
+window.addEventListener('pointermove', onMove);
+window.addEventListener('pointerup', onUp);
+window.addEventListener('pointercancel', onUp);
+byId('touch').addEventListener('pointerdown', onDown);
+
+if(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
+  document.body.classList.add('touch');
+
+/* ------------------------- state transitions ------------------------------ */
+function pause(){
+  if(state !== STATE.PLAY) return;
+  state = STATE.PAUSE;
+  rumbleStop();
+  show('paused', true);
+  hud.classList.remove('on');
+}
+function resume(){
+  if(state !== STATE.PAUSE) return;
+  state = STATE.PLAY;
+  show('paused', false);
+  hud.classList.add('on');
+  audioResume(); rumbleStart();
+  last = perfNow();
+}
+function quitRun(){
+  state = STATE.MENU;
+  rumbleStop();
+  resetTrack();
+  ball.x=0; ball.z=0; ball.dead=false; ball.falling=false;
+  run.dist=0; run.orbs=0; run.speed=CFG.START_SPEED;
+  show('paused', false); show('over', false); show('menu', true);
+  hud.classList.remove('on');
+}
+function toggleMute(){
+  muted = !muted;
+  if(master) master.gain.value = muted ? 0 : 0.55;
+  byId('sound').innerHTML = muted ? '&#128263;' : '&#128266;';
+}
+
+byId('playBtn').addEventListener('click',   function(){ audioInit(); audioResume(); startRun(); });
+byId('againBtn').addEventListener('click',  function(){ startRun(); });
+byId('menuBtn').addEventListener('click',   quitRun);
+byId('resumeBtn').addEventListener('click', resume);
+byId('quitBtn').addEventListener('click',   quitRun);
+byId('sound').addEventListener('click',     function(e){ e.stopPropagation(); audioInit(); toggleMute(); });
+
+document.addEventListener('visibilitychange', function(){ if(document.hidden) pause(); });
+window.addEventListener('blur', function(){ pause(); });
+
+/* ------------------------------ main loop --------------------------------- */
+var last = 0;
+function frame(now){
+  requestAnimationFrame(frame);
+  var dt = (now - last)/1000;
+  last = now;
+  if(!(dt > 0)) dt = 1/60;
+  if(dt > 0.05) dt = 0.05;            /* never let a stall teleport the ball */
+
+  if(state !== STATE.PAUSE){
+    update(dt, now/1000);
+    render(now/1000);
+    if(state === STATE.PLAY || state === STATE.DYING) updateHud(dt);
+  }
+}
+
+/* --------------------------------- boot ----------------------------------- */
+loadBest();
+bestEl.textContent = run.best;
+resize();
+resetTrack();
+ball.y = heightAt(0) + CFG.BALL_R;
+cam.z = -CFG.CAM_DIST;
+cam.y = heightAt(cam.z) + CFG.CAM_HEIGHT;
+camTrig();
+last = perfNow();
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
