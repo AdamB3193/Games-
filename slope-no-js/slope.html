@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05060d">
+<title>Slope &mdash; No JavaScript</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#05060d;color:#e8f6ff;
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+  -webkit-user-select:none;user-select:none}
+input{position:absolute;opacity:0;width:1px;height:1px}
+.game{position:fixed;inset:0;overflow:hidden}
+
+.sky{position:absolute;inset:0;background:linear-gradient(180deg,#030610 0%,#0a1634 42%,#1a3668 100%)}
+.stars{position:absolute;inset:0 0 55% 0;opacity:.85;
+  background-image:radial-gradient(1.4px 1.4px at 12% 24%,#cfefff,transparent),
+   radial-gradient(1.2px 1.2px at 32% 12%,#cfefff,transparent),
+   radial-gradient(1.6px 1.6px at 51% 32%,#dff3ff,transparent),
+   radial-gradient(1.1px 1.1px at 68% 16%,#cfefff,transparent),
+   radial-gradient(1.5px 1.5px at 84% 28%,#cfefff,transparent),
+   radial-gradient(1.2px 1.2px at 22% 40%,#bfe8ff,transparent),
+   radial-gradient(1.3px 1.3px at 44% 6%,#cfefff,transparent),
+   radial-gradient(1.1px 1.1px at 76% 44%,#cfefff,transparent),
+   radial-gradient(1.5px 1.5px at 92% 10%,#dff3ff,transparent),
+   radial-gradient(1.2px 1.2px at 6% 8%,#cfefff,transparent)}
+.glow{position:absolute;left:50%;top:50%;width:150vmax;height:150vmax;transform:translate(-50%,-50%);
+  background:radial-gradient(closest-side,rgba(90,200,255,.38),rgba(50,130,220,.14) 36%,rgba(0,0,0,0) 72%)}
+.haze{position:absolute;left:-25%;right:-25%;top:calc(50% - 11vh);height:22vh;
+  background:linear-gradient(180deg,rgba(20,60,120,0),rgba(9,17,38,.85) 55%,rgba(10,20,44,0))}
+
+.stage{position:absolute;inset:0;perspective:520px;perspective-origin:50% 50%;overflow:hidden}
+.world{position:absolute;left:50%;bottom:-140px;width:1200px;height:2800px;margin-left:-600px;
+  transform-origin:50% 100%;transform:rotateX(72deg);transform-style:preserve-3d}
+.deck{position:absolute;inset:0;
+  background:repeating-linear-gradient(to bottom,#1e305c 0 120px,#16254a 120px 240px)}
+.rail{position:absolute;top:0;bottom:0;width:7px;background:#68eeff;
+  box-shadow:0 0 22px 5px rgba(104,238,255,.55)}
+.rail.l{left:-4px}.rail.r{right:-4px}
+
+.obs,.orb,.ball{position:absolute;top:0;transform-style:preserve-3d}
+.obs{left:calc(50% - 58px);width:116px;height:116px;transform-origin:50% 100%;opacity:0;
+  background:linear-gradient(180deg,#ff8098,#ff3e60 45%,#a81c3a);
+  border-top:6px solid #ff96aa;border-radius:4px;
+  box-shadow:0 0 26px rgba(255,62,96,.55),inset 0 -14px 26px rgba(0,0,0,.35)}
+.orb{left:calc(50% - 24px);width:48px;height:48px;border-radius:50%;transform-origin:50% 100%;opacity:0;
+  background:radial-gradient(circle at 38% 34%,#fffbe6,#ffd166 58%,rgba(255,209,102,0) 75%);
+  box-shadow:0 0 26px 8px rgba(255,209,102,.45)}
+.ball{left:calc(50% - 58px);width:116px;height:116px;border-radius:50%;transform-origin:50% 100%;
+  transform:translate3d(0,2450px,0) rotateX(-72deg);
+  transition:transform .17s cubic-bezier(.3,.9,.4,1);
+  background:radial-gradient(circle at 34% 30%,#fff 4%,#7cfad7 28%,#1aa78f 74%,#07403c 100%);
+  box-shadow:0 0 34px 10px rgba(124,250,215,.32),inset -8px -12px 22px rgba(0,0,0,.4);
+  border:1px solid rgba(180,255,240,.5)}
+.vig{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 34%,rgba(0,0,0,.55) 100%)}
+
+.hud{position:absolute;inset:0;pointer-events:none;
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 0 18px;
+  display:flex;justify-content:space-between;align-items:flex-start}
+.panel{background:rgba(8,14,28,.42);border:1px solid rgba(90,230,255,.18);border-radius:12px;
+  padding:8px 14px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.lbl{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#7ea6c4;font-weight:700}
+.val{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;line-height:1;
+  display:flex;align-items:flex-end}
+#score .val{font-size:34px;color:#7df9ff;text-shadow:0 0 18px rgba(80,240,255,.55)}
+.hr{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+#best .val,#spd .val{font-size:17px;color:#b8ecff}
+.reel,.sreel{display:inline-block;height:1em;width:.62em;min-width:.62em;flex:0 0 auto;
+  overflow:hidden;text-align:center}
+.reel .strip,.sreel .strip{display:block}
+.reel b,.sreel b{display:block;height:1em;line-height:1em;font-weight:700}
+.unit{font-size:15px;color:#5d8ba6;margin-left:5px}
+#spdbar{width:118px;height:5px;border-radius:3px;background:rgba(120,200,255,.16);
+  overflow:hidden;margin-top:6px}
+#spdfill{height:100%;width:4%;border-radius:3px;
+  background:linear-gradient(90deg,#39e0ff,#8affc1 55%,#ffd166)}
+
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-start;overflow-y:auto;gap:18px;text-align:center;padding:26px;
+  background:radial-gradient(ellipse at 50% 42%,rgba(10,22,48,.55),rgba(3,5,12,.92));
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:8}
+.screen::before,.screen::after{content:'';flex:0 0 auto}
+.screen::before{margin-top:auto}.screen::after{margin-bottom:auto}
+.screen>*{flex:0 0 auto;max-width:100%}
+h1{font-size:clamp(46px,13vw,104px);font-weight:900;letter-spacing:.06em;line-height:.92;
+  background:linear-gradient(180deg,#eafcff 12%,#49e2ff 52%,#1b6bff 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 26px rgba(60,200,255,.45))}
+.sub{font-size:13px;letter-spacing:.32em;text-transform:uppercase;color:#6f96b4;font-weight:700}
+.btn{cursor:pointer;font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:14px;
+  color:#061019;background:linear-gradient(180deg,#8ff4ff,#25c7f0);border-radius:999px;
+  padding:15px 46px;display:inline-block;
+  box-shadow:0 0 30px rgba(50,200,255,.42),0 6px 20px rgba(0,0,0,.45)}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:none;color:#9fe6ff;border:1px solid rgba(110,225,255,.42);
+  box-shadow:none;padding:12px 30px;font-size:12px}
+.tip{font-size:11px;color:#5d7f9b;letter-spacing:.08em;max-width:470px;line-height:1.8}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;
+  padding:0 8px;border-radius:7px;background:rgba(18,32,58,.85);
+  border:1px solid rgba(120,200,255,.3);border-bottom-width:3px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:700;color:#cfefff}
+.keys{display:flex;gap:26px;flex-wrap:wrap;justify-content:center}
+.key{display:flex;flex-direction:column;align-items:center;gap:7px}
+.key span{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#6d93b0;font-weight:700}
+@media (max-height:560px){h1{font-size:clamp(30px,8vh,52px)}.screen{gap:10px;padding:16px}.keys{display:none}}
+
+.gate{position:absolute;inset:0;opacity:0;z-index:9;pointer-events:none}
+.boom{position:absolute;inset:0;opacity:0;pointer-events:none;text-decoration:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  background:radial-gradient(ellipse at 50% 42%,rgba(70,6,22,.93),rgba(3,5,12,.985))}
+.boom .bt{font-size:clamp(28px,8vw,52px);font-weight:900;letter-spacing:.08em;color:#ff5e7a;
+  text-shadow:0 0 26px rgba(255,70,110,.5)}
+.boom .bs{font-size:13px;letter-spacing:.32em;text-transform:uppercase;color:#6f96b4;font-weight:700}
+.boom .brow{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+
+.pads{position:absolute;left:0;right:0;bottom:0;height:42%;z-index:7;pointer-events:none}
+.padrow{display:none;position:absolute;inset:0;justify-content:space-between;align-items:flex-end;
+  padding:0 22px calc(env(safe-area-inset-bottom,0px) + 74px)}
+.pad{width:92px;height:92px;border-radius:50%;background:rgba(10,24,48,.4);
+  border:1px solid rgba(110,225,255,.28);color:#9fe6ff;font-size:30px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;pointer-events:auto}
+.pad:hover{background:rgba(60,200,255,.3)}
+.lane:focus-visible~.game .pad{border-color:rgba(160,245,255,.8);box-shadow:0 0 18px rgba(110,225,255,.45)}
+
+#pz:checked~.game *{animation-play-state:paused!important}
+#pz:checked~.game .pausescreen{display:flex}
+.pausescreen{display:none}
+.corner{position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:10}
+
+@keyframes run0a{0%{transform:translate3d(-480.0px,0px,0) rotateX(-72deg);opacity:0}7%{opacity:1}100%{transform:translate3d(-480.0px,3100px,0) rotateX(-72deg);opacity:1}}
+@keyframes hit0a{0%{opacity:0;pointer-events:none}13.8194%{opacity:0;pointer-events:none}13.8494%{opacity:1;pointer-events:auto}16.2527%{opacity:1;pointer-events:auto}16.2827%{opacity:0;pointer-events:none}16.3236%{opacity:0;pointer-events:none}16.3536%{opacity:1;pointer-events:auto}18.7569%{opacity:1;pointer-events:auto}18.7869%{opacity:0;pointer-events:none}23.5395%{opacity:0;pointer-events:none}23.5695%{opacity:1;pointer-events:auto}28.2826%{opacity:1;pointer-events:auto}28.3126%{opacity:0;pointer-events:none}36.7234%{opacity:0;pointer-events:none}36.7534%{opacity:1;pointer-events:auto}41.2027%{opacity:1;pointer-events:auto}41.2327%{opacity:0;pointer-events:none}44.6654%{opacity:0;pointer-events:none}44.6954%{opacity:1;pointer-events:auto}48.9859%{opacity:1;pointer-events:auto}49.0159%{opacity:0;pointer-events:none}57.1094%{opacity:0;pointer-events:none}57.1394%{opacity:1;pointer-events:auto}59.5426%{opacity:1;pointer-events:auto}59.5726%{opacity:0;pointer-events:none}60.3533%{opacity:0;pointer-events:none}60.3833%{opacity:1;pointer-events:auto}62.7866%{opacity:1;pointer-events:auto}62.8166%{opacity:0;pointer-events:none}66.4609%{opacity:0;pointer-events:none}66.4909%{opacity:1;pointer-events:auto}70.3456%{opacity:1;pointer-events:auto}70.3756%{opacity:0;pointer-events:none}70.7284%{opacity:0;pointer-events:none}70.7584%{opacity:1;pointer-events:auto}74.5277%{opacity:1;pointer-events:auto}74.5577%{opacity:0;pointer-events:none}78.5253%{opacity:0;pointer-events:none}78.5553%{opacity:1;pointer-events:auto}80.9586%{opacity:1;pointer-events:auto}80.9886%{opacity:0;pointer-events:none}83.2222%{opacity:0;pointer-events:none}83.2522%{opacity:1;pointer-events:auto}93.2708%{opacity:1;pointer-events:auto}93.3008%{opacity:0;pointer-events:none}94.0819%{opacity:0;pointer-events:none}94.1119%{opacity:1;pointer-events:auto}97.5967%{opacity:1;pointer-events:auto}97.6267%{opacity:0;pointer-events:none}100%{opacity:0;pointer-events:none}}
+@keyframes run1a{0%{transform:translate3d(-240.0px,0px,0) rotateX(-72deg);opacity:0}7%{opacity:1}100%{transform:translate3d(-240.0px,3100px,0) rotateX(-72deg);opacity:1}}
+@keyframes hit1a{0%{opacity:0;pointer-events:none}28.1129%{opacity:0;pointer-events:none}28.1429%{opacity:1;pointer-events:auto}32.7644%{opacity:1;pointer-events:auto}32.7944%{opacity:0;pointer-events:none}36.7234%{opacity:0;pointer-events:none}36.7534%{opacity:1;pointer-events:auto}39.1567%{opacity:1;pointer-events:auto}39.1867%{opacity:0;pointer-events:none}40.7746%{opacity:0;pointer-events:none}40.8046%{opacity:1;pointer-events:auto}45.1730%{opacity:1;pointer-events:auto}45.2030%{opacity:0;pointer-events:none}46.5527%{opacity:0;pointer-events:none}46.5827%{opacity:1;pointer-events:auto}48.9859%{opacity:1;pointer-events:auto}49.0159%{opacity:0;pointer-events:none}51.9909%{opacity:0;pointer-events:none}52.0209%{opacity:1;pointer-events:auto}54.4242%{opacity:1;pointer-events:auto}54.4542%{opacity:0;pointer-events:none}58.7477%{opacity:0;pointer-events:none}58.7777%{opacity:1;pointer-events:auto}61.1810%{opacity:1;pointer-events:auto}61.2110%{opacity:0;pointer-events:none}61.9268%{opacity:0;pointer-events:none}61.9568%{opacity:1;pointer-events:auto}64.3601%{opacity:1;pointer-events:auto}64.3901%{opacity:0;pointer-events:none}69.3346%{opacity:0;pointer-events:none}69.3646%{opacity:1;pointer-events:auto}73.1617%{opacity:1;pointer-events:auto}73.1917%{opacity:0;pointer-events:none}73.4331%{opacity:0;pointer-events:none}73.4631%{opacity:1;pointer-events:auto}90.0263%{opacity:1;pointer-events:auto}90.0563%{opacity:0;pointer-events:none}91.9190%{opacity:0;pointer-events:none}91.9490%{opacity:1;pointer-events:auto}97.5967%{opacity:1;pointer-events:auto}97.6267%{opacity:0;pointer-events:none}100%{opacity:0;pointer-events:none}}
+@keyframes run2a{0%{transform:translate3d(0.0px,0px,0) rotateX(-72deg);opacity:0}7%{opacity:1}100%{transform:translate3d(0.0px,3100px,0) rotateX(-72deg);opacity:1}}
+@keyframes hit2a{0%{opacity:0;pointer-events:none}8.6567%{opacity:0;pointer-events:none}8.6867%{opacity:1;pointer-events:auto}11.0900%{opacity:1;pointer-events:auto}11.1200%{opacity:0;pointer-events:none}28.1129%{opacity:0;pointer-events:none}28.1429%{opacity:1;pointer-events:auto}30.5461%{opacity:1;pointer-events:auto}30.5761%{opacity:0;pointer-events:none}42.7397%{opacity:0;pointer-events:none}42.7697%{opacity:1;pointer-events:auto}45.1730%{opacity:1;pointer-events:auto}45.2030%{opacity:0;pointer-events:none}46.5527%{opacity:0;pointer-events:none}46.5827%{opacity:1;pointer-events:auto}48.9859%{opacity:1;pointer-events:auto}49.0159%{opacity:0;pointer-events:none}55.4376%{opacity:0;pointer-events:none}55.4676%{opacity:1;pointer-events:auto}57.8708%{opacity:1;pointer-events:auto}57.9008%{opacity:0;pointer-events:none}58.7477%{opacity:0;pointer-events:none}58.7777%{opacity:1;pointer-events:auto}61.1810%{opacity:1;pointer-events:auto}61.2110%{opacity:0;pointer-events:none}61.9268%{opacity:0;pointer-events:none}61.9568%{opacity:1;pointer-events:auto}65.9021%{opacity:1;pointer-events:auto}65.9321%{opacity:0;pointer-events:none}69.3346%{opacity:0;pointer-events:none}69.3646%{opacity:1;pointer-events:auto}73.1617%{opacity:1;pointer-events:auto}73.1917%{opacity:0;pointer-events:none}74.7450%{opacity:0;pointer-events:none}74.7750%{opacity:1;pointer-events:auto}77.1782%{opacity:1;pointer-events:auto}77.2082%{opacity:0;pointer-events:none}77.2905%{opacity:0;pointer-events:none}77.3205%{opacity:1;pointer-events:auto}84.5166%{opacity:1;pointer-events:auto}84.5466%{opacity:0;pointer-events:none}85.4321%{opacity:0;pointer-events:none}85.4621%{opacity:1;pointer-events:auto}87.8653%{opacity:1;pointer-events:auto}87.8953%{opacity:0;pointer-events:none}88.6745%{opacity:0;pointer-events:none}88.7045%{opacity:1;pointer-events:auto}97.5967%{opacity:1;pointer-events:auto}97.6267%{opacity:0;pointer-events:none}100%{opacity:0;pointer-events:none}}
+@keyframes run3a{0%{transform:translate3d(240.0px,0px,0) rotateX(-72deg);opacity:0}7%{opacity:1}100%{transform:translate3d(240.0px,3100px,0) rotateX(-72deg);opacity:1}}
+@keyframes hit3a{0%{opacity:0;pointer-events:none}11.2641%{opacity:0;pointer-events:none}11.2941%{opacity:1;pointer-events:auto}13.6974%{opacity:1;pointer-events:auto}13.7274%{opacity:0;pointer-events:none}21.1826%{opacity:0;pointer-events:none}21.2126%{opacity:1;pointer-events:auto}23.6159%{opacity:1;pointer-events:auto}23.6459%{opacity:0;pointer-events:none}28.1129%{opacity:0;pointer-events:none}28.1429%{opacity:1;pointer-events:auto}30.5461%{opacity:1;pointer-events:auto}30.5761%{opacity:0;pointer-events:none}34.6355%{opacity:0;pointer-events:none}34.6655%{opacity:1;pointer-events:auto}37.0688%{opacity:1;pointer-events:auto}37.0988%{opacity:0;pointer-events:none}48.4022%{opacity:0;pointer-events:none}48.4322%{opacity:1;pointer-events:auto}52.6479%{opacity:1;pointer-events:auto}52.6779%{opacity:0;pointer-events:none}53.7316%{opacity:0;pointer-events:none}53.7616%{opacity:1;pointer-events:auto}57.8708%{opacity:1;pointer-events:auto}57.9008%{opacity:0;pointer-events:none}60.3533%{opacity:0;pointer-events:none}60.3833%{opacity:1;pointer-events:auto}64.3601%{opacity:1;pointer-events:auto}64.3901%{opacity:0;pointer-events:none}64.9800%{opacity:0;pointer-events:none}65.0100%{opacity:1;pointer-events:auto}71.7679%{opacity:1;pointer-events:auto}71.7979%{opacity:0;pointer-events:none}72.0944%{opacity:0;pointer-events:none}72.1244%{opacity:1;pointer-events:auto}97.5967%{opacity:1;pointer-events:auto}97.6267%{opacity:0;pointer-events:none}100%{opacity:0;pointer-events:none}}
+@keyframes run4a{0%{transform:translate3d(480.0px,0px,0) rotateX(-72deg);opacity:0}7%{opacity:1}100%{transform:translate3d(480.0px,3100px,0) rotateX(-72deg);opacity:1}}
+@keyframes hit4a{0%{opacity:0;pointer-events:none}18.7776%{opacity:0;pointer-events:none}18.8076%{opacity:1;pointer-events:auto}21.2109%{opacity:1;pointer-events:auto}21.2409%{opacity:0;pointer-events:none}28.1129%{opacity:0;pointer-events:none}28.1429%{opacity:1;pointer-events:auto}30.5461%{opacity:1;pointer-events:auto}30.5761%{opacity:0;pointer-events:none}32.5051%{opacity:0;pointer-events:none}32.5351%{opacity:1;pointer-events:auto}37.0688%{opacity:1;pointer-events:auto}37.0988%{opacity:0;pointer-events:none}38.7694%{opacity:0;pointer-events:none}38.7994%{opacity:1;pointer-events:auto}43.2079%{opacity:1;pointer-events:auto}43.2379%{opacity:0;pointer-events:none}44.6654%{opacity:0;pointer-events:none}44.6954%{opacity:1;pointer-events:auto}56.1649%{opacity:1;pointer-events:auto}56.1949%{opacity:0;pointer-events:none}57.1094%{opacity:0;pointer-events:none}57.1394%{opacity:1;pointer-events:auto}59.5426%{opacity:1;pointer-events:auto}59.5726%{opacity:0;pointer-events:none}61.9268%{opacity:0;pointer-events:none}61.9568%{opacity:1;pointer-events:auto}70.3456%{opacity:1;pointer-events:auto}70.3756%{opacity:0;pointer-events:none}72.0944%{opacity:0;pointer-events:none}72.1244%{opacity:1;pointer-events:auto}78.4639%{opacity:1;pointer-events:auto}78.4939%{opacity:0;pointer-events:none}79.7353%{opacity:0;pointer-events:none}79.7653%{opacity:1;pointer-events:auto}95.4337%{opacity:1;pointer-events:auto}95.4637%{opacity:0;pointer-events:none}100%{opacity:0;pointer-events:none}}
+@keyframes decka{from{background-position-y:0}to{background-position-y:240px}}
+@keyframes d0a{from{transform:translateY(0)}to{transform:translateY(-100%)}}
+@keyframes d1a{from{transform:translateY(0)}to{transform:translateY(-100%)}}
+@keyframes d2a{from{transform:translateY(0)}to{transform:translateY(-100%)}}
+@keyframes d3a{from{transform:translateY(0)}to{transform:translateY(-100%)}}
+@keyframes sra{from{transform:translateY(0)}to{transform:translateY(-100%)}}
+@keyframes spda{from{width:4%}to{width:100%}}
+@keyframes run0b{0%{transform:translate3d(-480.0px,0px,0) rotateX(-72deg);opacity:0}7%{opacity:1}100%{transform:translate3d(-480.0px,3100px,0) rotateX(-72deg);opacity:1}}
+@keyframes hit0b{0%{opacity:0;pointer-events:none}13.8194%{opacity:0;pointer-events:none}13.8494%{opacity:1;pointer-events:auto}16.2527%{opacity:1;pointer-events:auto}16.2827%{opacity:0;pointer-events:none}16.3236%{opacity:0;pointer-events:none}16.3536%{opacity:1;pointer-events:auto}18.7569%{opacity:1;pointer-events:auto}18.7869%{opacity:0;pointer-events:none}23.5395%{opacity:0;pointer-events:none}23.5695%{opacity:1;pointer-events:auto}28.2826%{opacity:1;pointer-events:auto}28.3126%{opacity:0;pointer-events:none}36.7234%{opacity:0;pointer-events:none}36.7534%{opacity:1;pointer-events:auto}41.2027%{opacity:1;pointer-events:auto}41.2327%{opacity:0;pointer-events:none}44.6654%{opacity:0;pointer-events:none}44.6954%{opacity:1;pointer-events:auto}48.9859%{opacity:1;pointer-events:auto}49.0159%{opacity:0;pointer-events:none}57.1094%{opacity:0;pointer-events:none}57.1394%{opacity:1;pointer-events:auto}59.5426%{opacity:1;pointer-events:auto}59.5726%{opacity:0;pointer-events:none}60.3533%{opacity:0;pointer-events:none}60.3833%{opacity:1;pointer-events:auto}62.7866%{opacity:1;pointer-events:auto}62.8166%{opacity:0;pointer-events:none}66.4609%{opacity:0;pointer-events:none}66.4909%{opacity:1;pointer-events:auto}70.3456%{opacity:1;pointer-events:auto}70.3756%{opacity:0;pointer-events:none}70.7284%{opacity:0;pointer-events:none}70.7584%{opacity:1;pointer-events:auto}74.5277%{opacity:1;pointer-events:auto}74.5577%{opacity:0;pointer-events:none}78.5253%{opacity:0;pointer-events:none}78.5553%{opacity:1;pointer-events:auto}80.9586%{opacity:1;pointer-events:auto}80.9886%{opacity:0;pointer-events:none}83.2222%{opacity:0;pointer-events:none}83.2522%{opacity:1;pointer-events:auto}93.2708%{opacity:1;pointer-events:auto}93.3008%{opacity:0;pointer-events:none}94.0819%{opacity:0;pointer-events:none}94.1119%{opacity:1;pointer-events:auto}97.5967%{opacity:1;pointer-events:auto}97.6267%{opacity:0;pointer-events:none}100%{opacity:0;pointer-events:none}}
+@keyframes run1b{0%{transform:translate3d(-240.0px,0px,0) rotateX(-72deg);opacity:0}7%{opacity:1}100%{transform:translate3d(-240.0px,3100px,0) rotateX(-72deg);opacity:1}}
+@keyframes hit1b{0%{opacity:0;pointer-events:none}28.1129%{opacity:0;pointer-events:none}28.1429%{opacity:1;pointer-events:auto}32.7644%{opacity:1;pointer-events:auto}32.7944%{opacity:0;pointer-events:none}36.7234%{opacity:0;pointer-events:none}36.7534%{opacity:1;pointer-events:auto}39.1567%{opacity:1;pointer-events:auto}39.1867%{opacity:0;pointer-events:none}40.7746%{opacity:0;pointer-events:none}40.8046%{opacity:1;pointer-events:auto}45.1730%{opacity:1;pointer-events:auto}45.2030%{opacity:0;pointer-events:none}46.5527%{opacity:0;pointer-events:none}46.5827%{opacity:1;pointer-events:auto}48.9859%{opacity:1;pointer-events:auto}49.0159%{opacity:0;pointer-events:none}51.9909%{opacity:0;pointer-events:none}52.0209%{opacity:1;pointer-events:auto}54.4242%{opacity:1;pointer-events:auto}54.4542%{opacity:0;pointer-events:none}58.7477%{opacity:0;pointer-events:none}58.7777%{opacity:1;pointer-events:auto}61.1810%{opacity:1;pointer-events:auto}61.2110%{opacity:0;pointer-events:none}61.9268%{opacity:0;pointer-events:none}61.9568%{opacity:1;pointer-events:auto}64.3601%{opacity:1;pointer-events:auto}64.3901%{opacity:0;pointer-events:none}69.3346%{opacity:0;pointer-events:none}69.3646%{opacity:1;pointer-events:auto}73.1617%{opacity:1;pointer-events:auto}73.1917%{opacity:0;pointer-events:none}73.4331%{opacity:0;pointer-events:none}73.4631%{opacity:1;pointer-events:auto}90.0263%{opacity:1;pointer-events:auto}90.0563%{opacity:0;pointer-events:none}91.9190%{opacity:0;pointer-events:none}91.9490%{opacity:1;pointer-events:auto}97.5967%{opacity:1;pointer-events:auto}97.6267%{opacity:0;pointer-events:none}100%{opacity:0;pointer-events:none}}
+@keyframes run2b{0%{transform:translate3d(0.0px,0px,0) rotateX(-72deg);opacity:0}7%{opacity:1}100%{transform:translate3d(0.0px,3100px,0) rotateX(-72deg);opacity:1}}
+@keyframes hit2b{0%{opacity:0;pointer-events:none}8.6567%{opacity:0;pointer-events:none}8.6867%{opacity:1;pointer-events:auto}11.0900%{opacity:1;pointer-events:auto}11.1200%{opacity:0;pointer-events:none}28.1129%{opacity:0;pointer-events:none}28.1429%{opacity:1;pointer-events:auto}30.5461%{opacity:1;pointer-events:auto}30.5761%{opacity:0;pointer-events:none}42.7397%{opacity:0;pointer-events:none}42.7697%{opacity:1;pointer-events:auto}45.1730%{opacity:1;pointer-events:auto}45.2030%{opacity:0;pointer-events:none}46.5527%{opacity:0;pointer-events:none}46.5827%{opacity:1;pointer-events:auto}48.9859%{opacity:1;pointer-events:auto}49.0159%{opacity:0;pointer-events:none}55.4376%{opacity:0;pointer-events:none}55.4676%{opacity:1;pointer-events:auto}57.8708%{opacity:1;pointer-events:auto}57.9008%{opacity:0;pointer-events:none}58.7477%{opacity:0;pointer-events:none}58.7777%{opacity:1;pointer-events:auto}61.1810%{opacity:1;pointer-events:auto}61.2110%{opacity:0;pointer-events:none}61.9268%{opacity:0;pointer-events:none}61.9568%{opacity:1;pointer-events:auto}65.9021%{opacity:1;pointer-events:auto}65.9321%{opacity:0;pointer-events:none}69.3346%{opacity:0;pointer-events:none}69.3646%{opacity:1;pointer-events:auto}73.1617%{opacity:1;pointer-events:auto}73.1917%{opacity:0;pointer-events:none}74.7450%{opacity:0;pointer-events:none}74.7750%{opacity:1;pointer-events:auto}77.1782%{opacity:1;pointer-events:auto}77.2082%{opacity:0;pointer-events:none}77.2905%{opacity:0;pointer-events:none}77.3205%{opacity:1;pointer-events:auto}84.5166%{opacity:1;pointer-events:auto}84.5466%{opacity:0;pointer-events:none}85.4321%{opacity:0;pointer-events:none}85.4621%{opacity:1;pointer-events:auto}87.8653%{opacity:1;pointer-events:auto}87.8953%{opacity:0;pointer-events:none}88.6745%{opacity:0;pointer-events:none}88.7045%{opacity:1;pointer-events:auto}97.5967%{opacity:1;pointer-events:auto}97.6267%{opacity:0;pointer-events:none}100%{opacity:0;pointer-events:none}}
+@keyframes run3b{0%{transform:translate3d(240.0px,0px,0) rotateX(-72deg);opacity:0}7%{opacity:1}100%{transform:translate3d(240.0px,3100px,0) rotateX(-72deg);opacity:1}}
+@keyframes hit3b{0%{opacity:0;pointer-events:none}11.2641%{opacity:0;pointer-events:none}11.2941%{opacity:1;pointer-events:auto}13.6974%{opacity:1;pointer-events:auto}13.7274%{opacity:0;pointer-events:none}21.1826%{opacity:0;pointer-events:none}21.2126%{opacity:1;pointer-events:auto}23.6159%{opacity:1;pointer-events:auto}23.6459%{opacity:0;pointer-events:none}28.1129%{opacity:0;pointer-events:none}28.1429%{opacity:1;pointer-events:auto}30.5461%{opacity:1;pointer-events:auto}30.5761%{opacity:0;pointer-events:none}34.6355%{opacity:0;pointer-events:none}34.6655%{opacity:1;pointer-events:auto}37.0688%{opacity:1;pointer-events:auto}37.0988%{opacity:0;pointer-events:none}48.4022%{opacity:0;pointer-events:none}48.4322%{opacity:1;pointer-events:auto}52.6479%{opacity:1;pointer-events:auto}52.6779%{opacity:0;pointer-events:none}53.7316%{opacity:0;pointer-events:none}53.7616%{opacity:1;pointer-events:auto}57.8708%{opacity:1;pointer-events:auto}57.9008%{opacity:0;pointer-events:none}60.3533%{opacity:0;pointer-events:none}60.3833%{opacity:1;pointer-events:auto}64.3601%{opacity:1;pointer-events:auto}64.3901%{opacity:0;pointer-events:none}64.9800%{opacity:0;pointer-events:none}65.0100%{opacity:1;pointer-events:auto}71.7679%{opacity:1;pointer-events:auto}71.7979%{opacity:0;pointer-events:none}72.0944%{opacity:0;pointer-events:none}72.1244%{opacity:1;pointer-events:auto}97.5967%{opacity:1;pointer-events:auto}97.6267%{opacity:0;pointer-events:none}100%{opacity:0;pointer-events:none}}
+@keyframes run4b{0%{transform:translate3d(480.0px,0px,0) rotateX(-72deg);opacity:0}7%{opacity:1}100%{transform:translate3d(480.0px,3100px,0) rotateX(-72deg);opacity:1}}
+@keyframes hit4b{0%{opacity:0;pointer-events:none}18.7776%{opacity:0;pointer-events:none}18.8076%{opacity:1;pointer-events:auto}21.2109%{opacity:1;pointer-events:auto}21.2409%{opacity:0;pointer-events:none}28.1129%{opacity:0;pointer-events:none}28.1429%{opacity:1;pointer-events:auto}30.5461%{opacity:1;pointer-events:auto}30.5761%{opacity:0;pointer-events:none}32.5051%{opacity:0;pointer-events:none}32.5351%{opacity:1;pointer-events:auto}37.0688%{opacity:1;pointer-events:auto}37.0988%{opacity:0;pointer-events:none}38.7694%{opacity:0;pointer-events:none}38.7994%{opacity:1;pointer-events:auto}43.2079%{opacity:1;pointer-events:auto}43.2379%{opacity:0;pointer-events:none}44.6654%{opacity:0;pointer-events:none}44.6954%{opacity:1;pointer-events:auto}56.1649%{opacity:1;pointer-events:auto}56.1949%{opacity:0;pointer-events:none}57.1094%{opacity:0;pointer-events:none}57.1394%{opacity:1;pointer-events:auto}59.5426%{opacity:1;pointer-events:auto}59.5726%{opacity:0;pointer-events:none}61.9268%{opacity:0;pointer-events:none}61.9568%{opacity:1;pointer-events:auto}70.3456%{opacity:1;pointer-events:auto}70.3756%{opacity:0;pointer-events:none}72.0944%{opacity:0;pointer-events:none}72.1244%{opacity:1;pointer-events:auto}78.4639%{opacity:1;pointer-events:auto}78.4939%{opacity:0;pointer-events:none}79.7353%{opacity:0;pointer-events:none}79.7653%{opacity:1;pointer-events:auto}95.4337%{opacity:1;pointer-events:auto}95.4637%{opacity:0;pointer-events:none}100%{opacity:0;pointer-events:none}}
+@keyframes deckb{from{background-position-y:0}to{background-position-y:240px}}
+@keyframes d0b{from{transform:translateY(0)}to{transform:translateY(-100%)}}
+@keyframes d1b{from{transform:translateY(0)}to{transform:translateY(-100%)}}
+@keyframes d2b{from{transform:translateY(0)}to{transform:translateY(-100%)}}
+@keyframes d3b{from{transform:translateY(0)}to{transform:translateY(-100%)}}
+@keyframes srb{from{transform:translateY(0)}to{transform:translateY(-100%)}}
+@keyframes spdb{from{width:4%}to{width:100%}}
+#gsA:checked~.game .deck{animation:decka 1.15s linear infinite}
+#gsA:checked~.game .menu{display:none}
+#gsA:checked~.game #spdfill{animation:spda 80s linear forwards}
+#gsA:checked~.game .sreel .strip{animation:sra 26s steps(10) infinite}
+#gsA:checked~.game .reel0 .strip{animation:d0a 1s steps(10) infinite}
+#gsA:checked~.game .reel1 .strip{animation:d1a 10s steps(10) infinite}
+#gsA:checked~.game .reel2 .strip{animation:d2a 100s steps(10) infinite}
+#gsA:checked~.game .reel3 .strip{animation:d3a 1000s steps(10) infinite}
+#gsA:checked~.game #h0{animation:hit0a 83.219s linear 1 forwards}
+#gsA:checked~.game #h1{animation:hit1a 83.219s linear 1 forwards}
+#gsA:checked~.game #h2{animation:hit2a 83.219s linear 1 forwards}
+#gsA:checked~.game #h3{animation:hit3a 83.219s linear 1 forwards}
+#gsA:checked~.game #h4{animation:hit4a 83.219s linear 1 forwards}
+#gsA:checked~.game #o0{animation:run2a 4.086s linear 4.000s 1 forwards}
+#gsA:checked~.game #o1{animation:run3a 4.022s linear 6.220s 1 forwards}
+#gsA:checked~.game #o2{animation:run0a 3.960s linear 8.396s 1 forwards}
+#gsA:checked~.game #o3{animation:run0a 3.899s linear 10.528s 1 forwards}
+#gsA:checked~.game #o4{animation:run4a 3.840s linear 12.617s 1 forwards}
+#gsA:checked~.game #o5{animation:run3a 3.781s linear 14.665s 1 forwards}
+#gsA:checked~.game #o6{animation:run0a 3.724s linear 16.671s 1 forwards}
+#gsA:checked~.game #o7{animation:run0a 3.667s linear 18.638s 1 forwards}
+#gsA:checked~.game #o8{animation:run1a 3.612s linear 20.565s 1 forwards}
+#gsA:checked~.game #o9{animation:run2a 3.612s linear 20.565s 1 forwards}
+#gsA:checked~.game #o10{animation:run3a 3.612s linear 20.565s 1 forwards}
+#gsA:checked~.game #o11{animation:run4a 3.612s linear 20.565s 1 forwards}
+#gsA:checked~.game #o12{animation:run1a 3.558s linear 22.454s 1 forwards}
+#gsA:checked~.game #o13{animation:run4a 3.506s linear 24.305s 1 forwards}
+#gsA:checked~.game #o14{animation:run4a 3.454s linear 26.119s 1 forwards}
+#gsA:checked~.game #o15{animation:run3a 3.454s linear 26.119s 1 forwards}
+#gsA:checked~.game #o16{animation:run0a 3.403s linear 27.896s 1 forwards}
+#gsA:checked~.game #o17{animation:run1a 3.403s linear 27.896s 1 forwards}
+#gsA:checked~.game #o18{animation:run4a 3.353s linear 29.639s 1 forwards}
+#gsA:checked~.game #o19{animation:run0a 3.353s linear 29.639s 1 forwards}
+#gsA:checked~.game #o20{animation:run4a 3.304s linear 31.346s 1 forwards}
+#gsA:checked~.game #o21{animation:run1a 3.304s linear 31.346s 1 forwards}
+#gsA:checked~.game #o22{animation:run1a 3.257s linear 33.019s 1 forwards}
+#gsA:checked~.game #o23{animation:run2a 3.257s linear 33.019s 1 forwards}
+#gsA:checked~.game #o24{animation:run0a 3.210s linear 34.658s 1 forwards}
+#gsA:checked~.game #o25{animation:run4a 3.210s linear 34.658s 1 forwards}
+#gsA:checked~.game #o26{animation:run0a 3.164s linear 36.265s 1 forwards}
+#gsA:checked~.game #o27{animation:run1a 3.164s linear 36.265s 1 forwards}
+#gsA:checked~.game #o28{animation:run2a 3.164s linear 36.265s 1 forwards}
+#gsA:checked~.game #o29{animation:run4a 3.164s linear 36.265s 1 forwards}
+#gsA:checked~.game #o30{animation:run4a 3.119s linear 37.840s 1 forwards}
+#gsA:checked~.game #o31{animation:run3a 3.119s linear 37.840s 1 forwards}
+#gsA:checked~.game #o32{animation:run3a 3.075s linear 39.383s 1 forwards}
+#gsA:checked~.game #o33{animation:run4a 3.075s linear 39.383s 1 forwards}
+#gsA:checked~.game #o34{animation:run1a 3.032s linear 40.896s 1 forwards}
+#gsA:checked~.game #o35{animation:run4a 3.032s linear 40.896s 1 forwards}
+#gsA:checked~.game #o36{animation:run4a 2.989s linear 42.378s 1 forwards}
+#gsA:checked~.game #o37{animation:run3a 2.989s linear 42.378s 1 forwards}
+#gsA:checked~.game #o38{animation:run3a 2.948s linear 43.830s 1 forwards}
+#gsA:checked~.game #o39{animation:run2a 2.948s linear 43.830s 1 forwards}
+#gsA:checked~.game #o40{animation:run0a 2.907s linear 45.253s 1 forwards}
+#gsA:checked~.game #o41{animation:run4a 2.907s linear 45.253s 1 forwards}
+#gsA:checked~.game #o42{animation:run1a 2.867s linear 46.648s 1 forwards}
+#gsA:checked~.game #o43{animation:run2a 2.867s linear 46.648s 1 forwards}
+#gsA:checked~.game #o44{animation:run3a 2.828s linear 48.015s 1 forwards}
+#gsA:checked~.game #o45{animation:run0a 2.828s linear 48.015s 1 forwards}
+#gsA:checked~.game #o46{animation:run1a 2.790s linear 49.355s 1 forwards}
+#gsA:checked~.game #o47{animation:run2a 2.790s linear 49.355s 1 forwards}
+#gsA:checked~.game #o48{animation:run3a 2.790s linear 49.355s 1 forwards}
+#gsA:checked~.game #o49{animation:run4a 2.790s linear 49.355s 1 forwards}
+#gsA:checked~.game #o50{animation:run4a 2.752s linear 50.668s 1 forwards}
+#gsA:checked~.game #o51{animation:run2a 2.752s linear 50.668s 1 forwards}
+#gsA:checked~.game #o52{animation:run4a 2.716s linear 51.955s 1 forwards}
+#gsA:checked~.game #o53{animation:run3a 2.716s linear 51.955s 1 forwards}
+#gsA:checked~.game #o54{animation:run3a 2.680s linear 53.216s 1 forwards}
+#gsA:checked~.game #o55{animation:run0a 2.680s linear 53.216s 1 forwards}
+#gsA:checked~.game #o56{animation:run4a 2.680s linear 53.216s 1 forwards}
+#gsA:checked~.game #o57{animation:run3a 2.644s linear 54.451s 1 forwards}
+#gsA:checked~.game #o58{animation:run0a 2.644s linear 54.451s 1 forwards}
+#gsA:checked~.game #o59{animation:run4a 2.644s linear 54.451s 1 forwards}
+#gsA:checked~.game #o60{animation:run2a 2.610s linear 55.662s 1 forwards}
+#gsA:checked~.game #o61{animation:run3a 2.610s linear 55.662s 1 forwards}
+#gsA:checked~.game #o62{animation:run1a 2.610s linear 55.662s 1 forwards}
+#gsA:checked~.game #o63{animation:run2a 2.576s linear 56.849s 1 forwards}
+#gsA:checked~.game #o64{animation:run0a 2.576s linear 56.849s 1 forwards}
+#gsA:checked~.game #o65{animation:run1a 2.576s linear 56.849s 1 forwards}
+#gsA:checked~.game #o66{animation:run3a 2.543s linear 58.012s 1 forwards}
+#gsA:checked~.game #o67{animation:run0a 2.543s linear 58.012s 1 forwards}
+#gsA:checked~.game #o68{animation:run4a 2.543s linear 58.012s 1 forwards}
+#gsA:checked~.game #o69{animation:run1a 2.510s linear 59.152s 1 forwards}
+#gsA:checked~.game #o70{animation:run4a 2.510s linear 59.152s 1 forwards}
+#gsA:checked~.game #o71{animation:run3a 2.510s linear 59.152s 1 forwards}
+#gsA:checked~.game #o72{animation:run1a 2.478s linear 60.269s 1 forwards}
+#gsA:checked~.game #o73{animation:run2a 2.478s linear 60.269s 1 forwards}
+#gsA:checked~.game #o74{animation:run3a 2.478s linear 60.269s 1 forwards}
+#gsA:checked~.game #o75{animation:run4a 2.478s linear 60.269s 1 forwards}
+#gsA:checked~.game #o76{animation:run1a 2.447s linear 61.363s 1 forwards}
+#gsA:checked~.game #o77{animation:run3a 2.447s linear 61.363s 1 forwards}
+#gsA:checked~.game #o78{animation:run4a 2.447s linear 61.363s 1 forwards}
+#gsA:checked~.game #o79{animation:run1a 2.416s linear 62.436s 1 forwards}
+#gsA:checked~.game #o80{animation:run3a 2.416s linear 62.436s 1 forwards}
+#gsA:checked~.game #o81{animation:run2a 2.416s linear 62.436s 1 forwards}
+#gsA:checked~.game #o82{animation:run2a 2.386s linear 63.487s 1 forwards}
+#gsA:checked~.game #o83{animation:run3a 2.386s linear 63.487s 1 forwards}
+#gsA:checked~.game #o84{animation:run0a 2.386s linear 63.487s 1 forwards}
+#gsA:checked~.game #o85{animation:run1a 2.357s linear 64.518s 1 forwards}
+#gsA:checked~.game #o86{animation:run4a 2.357s linear 64.518s 1 forwards}
+#gsA:checked~.game #o87{animation:run2a 2.357s linear 64.518s 1 forwards}
+#gsA:checked~.game #o88{animation:run4a 2.328s linear 65.527s 1 forwards}
+#gsA:checked~.game #o89{animation:run1a 2.328s linear 65.527s 1 forwards}
+#gsA:checked~.game #o90{animation:run3a 2.328s linear 65.527s 1 forwards}
+#gsA:checked~.game #o91{animation:run3a 2.300s linear 66.517s 1 forwards}
+#gsA:checked~.game #o92{animation:run2a 2.300s linear 66.517s 1 forwards}
+#gsA:checked~.game #o93{animation:run4a 2.300s linear 66.517s 1 forwards}
+#gsA:checked~.game #o94{animation:run1a 2.272s linear 67.486s 1 forwards}
+#gsA:checked~.game #o95{animation:run0a 2.272s linear 67.486s 1 forwards}
+#gsA:checked~.game #o96{animation:run4a 2.272s linear 67.486s 1 forwards}
+#gsA:checked~.game #o97{animation:run4a 2.245s linear 68.437s 1 forwards}
+#gsA:checked~.game #o98{animation:run3a 2.245s linear 68.437s 1 forwards}
+#gsA:checked~.game #o99{animation:run1a 2.245s linear 68.437s 1 forwards}
+#gsA:checked~.game #o100{animation:run0a 2.218s linear 69.368s 1 forwards}
+#gsA:checked~.game #o101{animation:run1a 2.218s linear 69.368s 1 forwards}
+#gsA:checked~.game #o102{animation:run2a 2.218s linear 69.368s 1 forwards}
+#gsA:checked~.game #o103{animation:run4a 2.218s linear 69.368s 1 forwards}
+#gsA:checked~.game #o104{animation:run3a 2.200s linear 70.281s 1 forwards}
+#gsA:checked~.game #o105{animation:run0a 2.200s linear 70.281s 1 forwards}
+#gsA:checked~.game #o106{animation:run4a 2.200s linear 70.281s 1 forwards}
+#gsA:checked~.game #o107{animation:run3a 2.200s linear 71.181s 1 forwards}
+#gsA:checked~.game #o108{animation:run1a 2.200s linear 71.181s 1 forwards}
+#gsA:checked~.game #o109{animation:run0a 2.200s linear 71.181s 1 forwards}
+#gsA:checked~.game #o110{animation:run0a 2.200s linear 72.081s 1 forwards}
+#gsA:checked~.game #o111{animation:run4a 2.200s linear 72.081s 1 forwards}
+#gsA:checked~.game #o112{animation:run2a 2.200s linear 72.081s 1 forwards}
+#gsA:checked~.game #o113{animation:run2a 2.200s linear 72.981s 1 forwards}
+#gsA:checked~.game #o114{animation:run0a 2.200s linear 72.981s 1 forwards}
+#gsA:checked~.game #o115{animation:run3a 2.200s linear 72.981s 1 forwards}
+#gsA:checked~.game #o116{animation:run4a 2.200s linear 73.881s 1 forwards}
+#gsA:checked~.game #o117{animation:run3a 2.200s linear 73.881s 1 forwards}
+#gsA:checked~.game #o118{animation:run0a 2.200s linear 73.881s 1 forwards}
+#gsA:checked~.game #o119{animation:run2a 2.200s linear 74.781s 1 forwards}
+#gsA:checked~.game #o120{animation:run4a 2.200s linear 74.781s 1 forwards}
+#gsA:checked~.game #o121{animation:run1a 2.200s linear 74.781s 1 forwards}
+#gsA:checked~.game #o122{animation:run3a 2.200s linear 75.681s 1 forwards}
+#gsA:checked~.game #o123{animation:run4a 2.200s linear 75.681s 1 forwards}
+#gsA:checked~.game #o124{animation:run1a 2.200s linear 75.681s 1 forwards}
+#gsA:checked~.game #o125{animation:run0a 2.200s linear 76.581s 1 forwards}
+#gsA:checked~.game #o126{animation:run2a 2.200s linear 76.581s 1 forwards}
+#gsA:checked~.game #o127{animation:run3a 2.200s linear 76.581s 1 forwards}
+#gsA:checked~.game #o128{animation:run0a 2.200s linear 77.481s 1 forwards}
+#gsA:checked~.game #o129{animation:run1a 2.200s linear 77.481s 1 forwards}
+#gsA:checked~.game #o130{animation:run2a 2.200s linear 77.481s 1 forwards}
+#gsA:checked~.game #o131{animation:run3a 2.200s linear 77.481s 1 forwards}
+#gsA:checked~.game #q0{animation:run1a 3.899s linear 10.528s 1 forwards}
+#gsA:checked~.game #q1{animation:run0a 3.840s linear 12.617s 1 forwards}
+#gsA:checked~.game #q2{animation:run1a 3.781s linear 14.665s 1 forwards}
+#gsA:checked~.game #q3{animation:run0a 3.612s linear 21.465s 1 forwards}
+#gsA:checked~.game #q4{animation:run0a 3.454s linear 26.119s 1 forwards}
+#gsA:checked~.game #q5{animation:run2a 3.403s linear 27.896s 1 forwards}
+#gsA:checked~.game #q6{animation:run3a 3.304s linear 31.346s 1 forwards}
+#gsA:checked~.game #q7{animation:run4a 3.257s linear 33.019s 1 forwards}
+#gsA:checked~.game #q8{animation:run3a 3.164s linear 37.165s 1 forwards}
+#gsA:checked~.game #q9{animation:run0a 3.075s linear 39.383s 1 forwards}
+#gsA:checked~.game #q10{animation:run2a 3.032s linear 40.896s 1 forwards}
+#gsA:checked~.game #q11{animation:run3a 2.867s linear 46.648s 1 forwards}
+#gsA:checked~.game #q12{animation:run0a 2.790s linear 50.255s 1 forwards}
+#gsA:checked~.game #q13{animation:run1a 2.752s linear 50.668s 1 forwards}
+#gsA:checked~.game #q14{animation:run3a 2.576s linear 56.849s 1 forwards}
+#gsA:checked~.game #q15{animation:run2a 2.510s linear 59.152s 1 forwards}
+#gsA:checked~.game #q16{animation:run0a 2.478s linear 61.169s 1 forwards}
+#gsA:checked~.game #q17{animation:run4a 2.416s linear 62.436s 1 forwards}
+#gsA:checked~.game #q18{animation:run1a 2.386s linear 63.487s 1 forwards}
+#gsA:checked~.game #q19{animation:run3a 2.357s linear 64.518s 1 forwards}
+#gsA:checked~.game #q20{animation:run0a 2.328s linear 65.527s 1 forwards}
+#gsA:checked~.game #q21{animation:run0a 2.245s linear 68.437s 1 forwards}
+#gsA:checked~.game #q22{animation:run3a 2.218s linear 70.268s 1 forwards}
+#gsA:checked~.game #q23{animation:run1a 2.200s linear 70.281s 1 forwards}
+#gsA:checked~.game #q24{animation:run2a 2.200s linear 71.181s 1 forwards}
+#gsA:checked~.game #q25{animation:run1a 2.200s linear 72.081s 1 forwards}
+#gsA:checked~.game #q26{animation:run3a 2.200s linear 74.781s 1 forwards}
+#gsA:checked~.game #q27{animation:run0a 2.200s linear 75.681s 1 forwards}
+#gsA:checked~.game #q28{animation:run1a 2.200s linear 76.581s 1 forwards}
+#gsA:checked~.game #q29{animation:run4a 2.200s linear 78.381s 1 forwards}
+#gsB:checked~.game .deck{animation:deckb 1.15s linear infinite}
+#gsB:checked~.game .menu{display:none}
+#gsB:checked~.game #spdfill{animation:spdb 80s linear forwards}
+#gsB:checked~.game .sreel .strip{animation:srb 26s steps(10) infinite}
+#gsB:checked~.game .reel0 .strip{animation:d0b 1s steps(10) infinite}
+#gsB:checked~.game .reel1 .strip{animation:d1b 10s steps(10) infinite}
+#gsB:checked~.game .reel2 .strip{animation:d2b 100s steps(10) infinite}
+#gsB:checked~.game .reel3 .strip{animation:d3b 1000s steps(10) infinite}
+#gsB:checked~.game #h0{animation:hit0b 83.219s linear 1 forwards}
+#gsB:checked~.game #h1{animation:hit1b 83.219s linear 1 forwards}
+#gsB:checked~.game #h2{animation:hit2b 83.219s linear 1 forwards}
+#gsB:checked~.game #h3{animation:hit3b 83.219s linear 1 forwards}
+#gsB:checked~.game #h4{animation:hit4b 83.219s linear 1 forwards}
+#gsB:checked~.game #o0{animation:run2b 4.086s linear 4.000s 1 forwards}
+#gsB:checked~.game #o1{animation:run3b 4.022s linear 6.220s 1 forwards}
+#gsB:checked~.game #o2{animation:run0b 3.960s linear 8.396s 1 forwards}
+#gsB:checked~.game #o3{animation:run0b 3.899s linear 10.528s 1 forwards}
+#gsB:checked~.game #o4{animation:run4b 3.840s linear 12.617s 1 forwards}
+#gsB:checked~.game #o5{animation:run3b 3.781s linear 14.665s 1 forwards}
+#gsB:checked~.game #o6{animation:run0b 3.724s linear 16.671s 1 forwards}
+#gsB:checked~.game #o7{animation:run0b 3.667s linear 18.638s 1 forwards}
+#gsB:checked~.game #o8{animation:run1b 3.612s linear 20.565s 1 forwards}
+#gsB:checked~.game #o9{animation:run2b 3.612s linear 20.565s 1 forwards}
+#gsB:checked~.game #o10{animation:run3b 3.612s linear 20.565s 1 forwards}
+#gsB:checked~.game #o11{animation:run4b 3.612s linear 20.565s 1 forwards}
+#gsB:checked~.game #o12{animation:run1b 3.558s linear 22.454s 1 forwards}
+#gsB:checked~.game #o13{animation:run4b 3.506s linear 24.305s 1 forwards}
+#gsB:checked~.game #o14{animation:run4b 3.454s linear 26.119s 1 forwards}
+#gsB:checked~.game #o15{animation:run3b 3.454s linear 26.119s 1 forwards}
+#gsB:checked~.game #o16{animation:run0b 3.403s linear 27.896s 1 forwards}
+#gsB:checked~.game #o17{animation:run1b 3.403s linear 27.896s 1 forwards}
+#gsB:checked~.game #o18{animation:run4b 3.353s linear 29.639s 1 forwards}
+#gsB:checked~.game #o19{animation:run0b 3.353s linear 29.639s 1 forwards}
+#gsB:checked~.game #o20{animation:run4b 3.304s linear 31.346s 1 forwards}
+#gsB:checked~.game #o21{animation:run1b 3.304s linear 31.346s 1 forwards}
+#gsB:checked~.game #o22{animation:run1b 3.257s linear 33.019s 1 forwards}
+#gsB:checked~.game #o23{animation:run2b 3.257s linear 33.019s 1 forwards}
+#gsB:checked~.game #o24{animation:run0b 3.210s linear 34.658s 1 forwards}
+#gsB:checked~.game #o25{animation:run4b 3.210s linear 34.658s 1 forwards}
+#gsB:checked~.game #o26{animation:run0b 3.164s linear 36.265s 1 forwards}
+#gsB:checked~.game #o27{animation:run1b 3.164s linear 36.265s 1 forwards}
+#gsB:checked~.game #o28{animation:run2b 3.164s linear 36.265s 1 forwards}
+#gsB:checked~.game #o29{animation:run4b 3.164s linear 36.265s 1 forwards}
+#gsB:checked~.game #o30{animation:run4b 3.119s linear 37.840s 1 forwards}
+#gsB:checked~.game #o31{animation:run3b 3.119s linear 37.840s 1 forwards}
+#gsB:checked~.game #o32{animation:run3b 3.075s linear 39.383s 1 forwards}
+#gsB:checked~.game #o33{animation:run4b 3.075s linear 39.383s 1 forwards}
+#gsB:checked~.game #o34{animation:run1b 3.032s linear 40.896s 1 forwards}
+#gsB:checked~.game #o35{animation:run4b 3.032s linear 40.896s 1 forwards}
+#gsB:checked~.game #o36{animation:run4b 2.989s linear 42.378s 1 forwards}
+#gsB:checked~.game #o37{animation:run3b 2.989s linear 42.378s 1 forwards}
+#gsB:checked~.game #o38{animation:run3b 2.948s linear 43.830s 1 forwards}
+#gsB:checked~.game #o39{animation:run2b 2.948s linear 43.830s 1 forwards}
+#gsB:checked~.game #o40{animation:run0b 2.907s linear 45.253s 1 forwards}
+#gsB:checked~.game #o41{animation:run4b 2.907s linear 45.253s 1 forwards}
+#gsB:checked~.game #o42{animation:run1b 2.867s linear 46.648s 1 forwards}
+#gsB:checked~.game #o43{animation:run2b 2.867s linear 46.648s 1 forwards}
+#gsB:checked~.game #o44{animation:run3b 2.828s linear 48.015s 1 forwards}
+#gsB:checked~.game #o45{animation:run0b 2.828s linear 48.015s 1 forwards}
+#gsB:checked~.game #o46{animation:run1b 2.790s linear 49.355s 1 forwards}
+#gsB:checked~.game #o47{animation:run2b 2.790s linear 49.355s 1 forwards}
+#gsB:checked~.game #o48{animation:run3b 2.790s linear 49.355s 1 forwards}
+#gsB:checked~.game #o49{animation:run4b 2.790s linear 49.355s 1 forwards}
+#gsB:checked~.game #o50{animation:run4b 2.752s linear 50.668s 1 forwards}
+#gsB:checked~.game #o51{animation:run2b 2.752s linear 50.668s 1 forwards}
+#gsB:checked~.game #o52{animation:run4b 2.716s linear 51.955s 1 forwards}
+#gsB:checked~.game #o53{animation:run3b 2.716s linear 51.955s 1 forwards}
+#gsB:checked~.game #o54{animation:run3b 2.680s linear 53.216s 1 forwards}
+#gsB:checked~.game #o55{animation:run0b 2.680s linear 53.216s 1 forwards}
+#gsB:checked~.game #o56{animation:run4b 2.680s linear 53.216s 1 forwards}
+#gsB:checked~.game #o57{animation:run3b 2.644s linear 54.451s 1 forwards}
+#gsB:checked~.game #o58{animation:run0b 2.644s linear 54.451s 1 forwards}
+#gsB:checked~.game #o59{animation:run4b 2.644s linear 54.451s 1 forwards}
+#gsB:checked~.game #o60{animation:run2b 2.610s linear 55.662s 1 forwards}
+#gsB:checked~.game #o61{animation:run3b 2.610s linear 55.662s 1 forwards}
+#gsB:checked~.game #o62{animation:run1b 2.610s linear 55.662s 1 forwards}
+#gsB:checked~.game #o63{animation:run2b 2.576s linear 56.849s 1 forwards}
+#gsB:checked~.game #o64{animation:run0b 2.576s linear 56.849s 1 forwards}
+#gsB:checked~.game #o65{animation:run1b 2.576s linear 56.849s 1 forwards}
+#gsB:checked~.game #o66{animation:run3b 2.543s linear 58.012s 1 forwards}
+#gsB:checked~.game #o67{animation:run0b 2.543s linear 58.012s 1 forwards}
+#gsB:checked~.game #o68{animation:run4b 2.543s linear 58.012s 1 forwards}
+#gsB:checked~.game #o69{animation:run1b 2.510s linear 59.152s 1 forwards}
+#gsB:checked~.game #o70{animation:run4b 2.510s linear 59.152s 1 forwards}
+#gsB:checked~.game #o71{animation:run3b 2.510s linear 59.152s 1 forwards}
+#gsB:checked~.game #o72{animation:run1b 2.478s linear 60.269s 1 forwards}
+#gsB:checked~.game #o73{animation:run2b 2.478s linear 60.269s 1 forwards}
+#gsB:checked~.game #o74{animation:run3b 2.478s linear 60.269s 1 forwards}
+#gsB:checked~.game #o75{animation:run4b 2.478s linear 60.269s 1 forwards}
+#gsB:checked~.game #o76{animation:run1b 2.447s linear 61.363s 1 forwards}
+#gsB:checked~.game #o77{animation:run3b 2.447s linear 61.363s 1 forwards}
+#gsB:checked~.game #o78{animation:run4b 2.447s linear 61.363s 1 forwards}
+#gsB:checked~.game #o79{animation:run1b 2.416s linear 62.436s 1 forwards}
+#gsB:checked~.game #o80{animation:run3b 2.416s linear 62.436s 1 forwards}
+#gsB:checked~.game #o81{animation:run2b 2.416s linear 62.436s 1 forwards}
+#gsB:checked~.game #o82{animation:run2b 2.386s linear 63.487s 1 forwards}
+#gsB:checked~.game #o83{animation:run3b 2.386s linear 63.487s 1 forwards}
+#gsB:checked~.game #o84{animation:run0b 2.386s linear 63.487s 1 forwards}
+#gsB:checked~.game #o85{animation:run1b 2.357s linear 64.518s 1 forwards}
+#gsB:checked~.game #o86{animation:run4b 2.357s linear 64.518s 1 forwards}
+#gsB:checked~.game #o87{animation:run2b 2.357s linear 64.518s 1 forwards}
+#gsB:checked~.game #o88{animation:run4b 2.328s linear 65.527s 1 forwards}
+#gsB:checked~.game #o89{animation:run1b 2.328s linear 65.527s 1 forwards}
+#gsB:checked~.game #o90{animation:run3b 2.328s linear 65.527s 1 forwards}
+#gsB:checked~.game #o91{animation:run3b 2.300s linear 66.517s 1 forwards}
+#gsB:checked~.game #o92{animation:run2b 2.300s linear 66.517s 1 forwards}
+#gsB:checked~.game #o93{animation:run4b 2.300s linear 66.517s 1 forwards}
+#gsB:checked~.game #o94{animation:run1b 2.272s linear 67.486s 1 forwards}
+#gsB:checked~.game #o95{animation:run0b 2.272s linear 67.486s 1 forwards}
+#gsB:checked~.game #o96{animation:run4b 2.272s linear 67.486s 1 forwards}
+#gsB:checked~.game #o97{animation:run4b 2.245s linear 68.437s 1 forwards}
+#gsB:checked~.game #o98{animation:run3b 2.245s linear 68.437s 1 forwards}
+#gsB:checked~.game #o99{animation:run1b 2.245s linear 68.437s 1 forwards}
+#gsB:checked~.game #o100{animation:run0b 2.218s linear 69.368s 1 forwards}
+#gsB:checked~.game #o101{animation:run1b 2.218s linear 69.368s 1 forwards}
+#gsB:checked~.game #o102{animation:run2b 2.218s linear 69.368s 1 forwards}
+#gsB:checked~.game #o103{animation:run4b 2.218s linear 69.368s 1 forwards}
+#gsB:checked~.game #o104{animation:run3b 2.200s linear 70.281s 1 forwards}
+#gsB:checked~.game #o105{animation:run0b 2.200s linear 70.281s 1 forwards}
+#gsB:checked~.game #o106{animation:run4b 2.200s linear 70.281s 1 forwards}
+#gsB:checked~.game #o107{animation:run3b 2.200s linear 71.181s 1 forwards}
+#gsB:checked~.game #o108{animation:run1b 2.200s linear 71.181s 1 forwards}
+#gsB:checked~.game #o109{animation:run0b 2.200s linear 71.181s 1 forwards}
+#gsB:checked~.game #o110{animation:run0b 2.200s linear 72.081s 1 forwards}
+#gsB:checked~.game #o111{animation:run4b 2.200s linear 72.081s 1 forwards}
+#gsB:checked~.game #o112{animation:run2b 2.200s linear 72.081s 1 forwards}
+#gsB:checked~.game #o113{animation:run2b 2.200s linear 72.981s 1 forwards}
+#gsB:checked~.game #o114{animation:run0b 2.200s linear 72.981s 1 forwards}
+#gsB:checked~.game #o115{animation:run3b 2.200s linear 72.981s 1 forwards}
+#gsB:checked~.game #o116{animation:run4b 2.200s linear 73.881s 1 forwards}
+#gsB:checked~.game #o117{animation:run3b 2.200s linear 73.881s 1 forwards}
+#gsB:checked~.game #o118{animation:run0b 2.200s linear 73.881s 1 forwards}
+#gsB:checked~.game #o119{animation:run2b 2.200s linear 74.781s 1 forwards}
+#gsB:checked~.game #o120{animation:run4b 2.200s linear 74.781s 1 forwards}
+#gsB:checked~.game #o121{animation:run1b 2.200s linear 74.781s 1 forwards}
+#gsB:checked~.game #o122{animation:run3b 2.200s linear 75.681s 1 forwards}
+#gsB:checked~.game #o123{animation:run4b 2.200s linear 75.681s 1 forwards}
+#gsB:checked~.game #o124{animation:run1b 2.200s linear 75.681s 1 forwards}
+#gsB:checked~.game #o125{animation:run0b 2.200s linear 76.581s 1 forwards}
+#gsB:checked~.game #o126{animation:run2b 2.200s linear 76.581s 1 forwards}
+#gsB:checked~.game #o127{animation:run3b 2.200s linear 76.581s 1 forwards}
+#gsB:checked~.game #o128{animation:run0b 2.200s linear 77.481s 1 forwards}
+#gsB:checked~.game #o129{animation:run1b 2.200s linear 77.481s 1 forwards}
+#gsB:checked~.game #o130{animation:run2b 2.200s linear 77.481s 1 forwards}
+#gsB:checked~.game #o131{animation:run3b 2.200s linear 77.481s 1 forwards}
+#gsB:checked~.game #q0{animation:run1b 3.899s linear 10.528s 1 forwards}
+#gsB:checked~.game #q1{animation:run0b 3.840s linear 12.617s 1 forwards}
+#gsB:checked~.game #q2{animation:run1b 3.781s linear 14.665s 1 forwards}
+#gsB:checked~.game #q3{animation:run0b 3.612s linear 21.465s 1 forwards}
+#gsB:checked~.game #q4{animation:run0b 3.454s linear 26.119s 1 forwards}
+#gsB:checked~.game #q5{animation:run2b 3.403s linear 27.896s 1 forwards}
+#gsB:checked~.game #q6{animation:run3b 3.304s linear 31.346s 1 forwards}
+#gsB:checked~.game #q7{animation:run4b 3.257s linear 33.019s 1 forwards}
+#gsB:checked~.game #q8{animation:run3b 3.164s linear 37.165s 1 forwards}
+#gsB:checked~.game #q9{animation:run0b 3.075s linear 39.383s 1 forwards}
+#gsB:checked~.game #q10{animation:run2b 3.032s linear 40.896s 1 forwards}
+#gsB:checked~.game #q11{animation:run3b 2.867s linear 46.648s 1 forwards}
+#gsB:checked~.game #q12{animation:run0b 2.790s linear 50.255s 1 forwards}
+#gsB:checked~.game #q13{animation:run1b 2.752s linear 50.668s 1 forwards}
+#gsB:checked~.game #q14{animation:run3b 2.576s linear 56.849s 1 forwards}
+#gsB:checked~.game #q15{animation:run2b 2.510s linear 59.152s 1 forwards}
+#gsB:checked~.game #q16{animation:run0b 2.478s linear 61.169s 1 forwards}
+#gsB:checked~.game #q17{animation:run4b 2.416s linear 62.436s 1 forwards}
+#gsB:checked~.game #q18{animation:run1b 2.386s linear 63.487s 1 forwards}
+#gsB:checked~.game #q19{animation:run3b 2.357s linear 64.518s 1 forwards}
+#gsB:checked~.game #q20{animation:run0b 2.328s linear 65.527s 1 forwards}
+#gsB:checked~.game #q21{animation:run0b 2.245s linear 68.437s 1 forwards}
+#gsB:checked~.game #q22{animation:run3b 2.218s linear 70.268s 1 forwards}
+#gsB:checked~.game #q23{animation:run1b 2.200s linear 70.281s 1 forwards}
+#gsB:checked~.game #q24{animation:run2b 2.200s linear 71.181s 1 forwards}
+#gsB:checked~.game #q25{animation:run1b 2.200s linear 72.081s 1 forwards}
+#gsB:checked~.game #q26{animation:run3b 2.200s linear 74.781s 1 forwards}
+#gsB:checked~.game #q27{animation:run0b 2.200s linear 75.681s 1 forwards}
+#gsB:checked~.game #q28{animation:run1b 2.200s linear 76.581s 1 forwards}
+#gsB:checked~.game #q29{animation:run4b 2.200s linear 78.381s 1 forwards}
+#ln0:checked~.game .ball{transform:translate3d(-480.0px,2450px,0) rotateX(-72deg)}
+#ln0:checked~.game .g0{opacity:1}
+#ln1:checked~.game .ball{transform:translate3d(-240.0px,2450px,0) rotateX(-72deg)}
+#ln1:checked~.game .g1{opacity:1}
+#ln2:checked~.game .ball{transform:translate3d(0.0px,2450px,0) rotateX(-72deg)}
+#ln2:checked~.game .g2{opacity:1}
+#ln3:checked~.game .ball{transform:translate3d(240.0px,2450px,0) rotateX(-72deg)}
+#ln3:checked~.game .g3{opacity:1}
+#ln4:checked~.game .ball{transform:translate3d(480.0px,2450px,0) rotateX(-72deg)}
+#ln4:checked~.game .g4{opacity:1}
+#ln0:checked~.game .from0{display:flex}
+#ln1:checked~.game .from1{display:flex}
+#ln2:checked~.game .from2{display:flex}
+#ln3:checked~.game .from3{display:flex}
+#ln4:checked~.game .from4{display:flex}
+#gsA:checked~.game .retryA{display:none}
+#gsB:checked~.game .retryB{display:none}
+#gsM:checked~.game .corner{display:none}
+</style>
+</head>
+<body>
+<input type="radio" name="lane" id="ln0" class="lane">
+<input type="radio" name="lane" id="ln1" class="lane">
+<input type="radio" name="lane" id="ln2" class="lane" checked>
+<input type="radio" name="lane" id="ln3" class="lane">
+<input type="radio" name="lane" id="ln4" class="lane">
+<input type="radio" name="gs" id="gsM" checked>
+<input type="radio" name="gs" id="gsA">
+<input type="radio" name="gs" id="gsB">
+<input type="checkbox" id="pz">
+
+<div class="game">
+  <div class="sky"><div class="stars"></div><div class="glow"></div><div class="haze"></div></div>
+  <div class="stage">
+    <div class="world">
+      <div class="deck"></div>
+      <div class="rail l"></div><div class="rail r"></div>
+<div class="orb" id="q0"></div>
+<div class="orb" id="q1"></div>
+<div class="orb" id="q2"></div>
+<div class="orb" id="q3"></div>
+<div class="orb" id="q4"></div>
+<div class="orb" id="q5"></div>
+<div class="orb" id="q6"></div>
+<div class="orb" id="q7"></div>
+<div class="orb" id="q8"></div>
+<div class="orb" id="q9"></div>
+<div class="orb" id="q10"></div>
+<div class="orb" id="q11"></div>
+<div class="orb" id="q12"></div>
+<div class="orb" id="q13"></div>
+<div class="orb" id="q14"></div>
+<div class="orb" id="q15"></div>
+<div class="orb" id="q16"></div>
+<div class="orb" id="q17"></div>
+<div class="orb" id="q18"></div>
+<div class="orb" id="q19"></div>
+<div class="orb" id="q20"></div>
+<div class="orb" id="q21"></div>
+<div class="orb" id="q22"></div>
+<div class="orb" id="q23"></div>
+<div class="orb" id="q24"></div>
+<div class="orb" id="q25"></div>
+<div class="orb" id="q26"></div>
+<div class="orb" id="q27"></div>
+<div class="orb" id="q28"></div>
+<div class="orb" id="q29"></div>
+<div class="obs" id="o0"></div>
+<div class="obs" id="o1"></div>
+<div class="obs" id="o2"></div>
+<div class="obs" id="o3"></div>
+<div class="obs" id="o4"></div>
+<div class="obs" id="o5"></div>
+<div class="obs" id="o6"></div>
+<div class="obs" id="o7"></div>
+<div class="obs" id="o8"></div>
+<div class="obs" id="o9"></div>
+<div class="obs" id="o10"></div>
+<div class="obs" id="o11"></div>
+<div class="obs" id="o12"></div>
+<div class="obs" id="o13"></div>
+<div class="obs" id="o14"></div>
+<div class="obs" id="o15"></div>
+<div class="obs" id="o16"></div>
+<div class="obs" id="o17"></div>
+<div class="obs" id="o18"></div>
+<div class="obs" id="o19"></div>
+<div class="obs" id="o20"></div>
+<div class="obs" id="o21"></div>
+<div class="obs" id="o22"></div>
+<div class="obs" id="o23"></div>
+<div class="obs" id="o24"></div>
+<div class="obs" id="o25"></div>
+<div class="obs" id="o26"></div>
+<div class="obs" id="o27"></div>
+<div class="obs" id="o28"></div>
+<div class="obs" id="o29"></div>
+<div class="obs" id="o30"></div>
+<div class="obs" id="o31"></div>
+<div class="obs" id="o32"></div>
+<div class="obs" id="o33"></div>
+<div class="obs" id="o34"></div>
+<div class="obs" id="o35"></div>
+<div class="obs" id="o36"></div>
+<div class="obs" id="o37"></div>
+<div class="obs" id="o38"></div>
+<div class="obs" id="o39"></div>
+<div class="obs" id="o40"></div>
+<div class="obs" id="o41"></div>
+<div class="obs" id="o42"></div>
+<div class="obs" id="o43"></div>
+<div class="obs" id="o44"></div>
+<div class="obs" id="o45"></div>
+<div class="obs" id="o46"></div>
+<div class="obs" id="o47"></div>
+<div class="obs" id="o48"></div>
+<div class="obs" id="o49"></div>
+<div class="obs" id="o50"></div>
+<div class="obs" id="o51"></div>
+<div class="obs" id="o52"></div>
+<div class="obs" id="o53"></div>
+<div class="obs" id="o54"></div>
+<div class="obs" id="o55"></div>
+<div class="obs" id="o56"></div>
+<div class="obs" id="o57"></div>
+<div class="obs" id="o58"></div>
+<div class="obs" id="o59"></div>
+<div class="obs" id="o60"></div>
+<div class="obs" id="o61"></div>
+<div class="obs" id="o62"></div>
+<div class="obs" id="o63"></div>
+<div class="obs" id="o64"></div>
+<div class="obs" id="o65"></div>
+<div class="obs" id="o66"></div>
+<div class="obs" id="o67"></div>
+<div class="obs" id="o68"></div>
+<div class="obs" id="o69"></div>
+<div class="obs" id="o70"></div>
+<div class="obs" id="o71"></div>
+<div class="obs" id="o72"></div>
+<div class="obs" id="o73"></div>
+<div class="obs" id="o74"></div>
+<div class="obs" id="o75"></div>
+<div class="obs" id="o76"></div>
+<div class="obs" id="o77"></div>
+<div class="obs" id="o78"></div>
+<div class="obs" id="o79"></div>
+<div class="obs" id="o80"></div>
+<div class="obs" id="o81"></div>
+<div class="obs" id="o82"></div>
+<div class="obs" id="o83"></div>
+<div class="obs" id="o84"></div>
+<div class="obs" id="o85"></div>
+<div class="obs" id="o86"></div>
+<div class="obs" id="o87"></div>
+<div class="obs" id="o88"></div>
+<div class="obs" id="o89"></div>
+<div class="obs" id="o90"></div>
+<div class="obs" id="o91"></div>
+<div class="obs" id="o92"></div>
+<div class="obs" id="o93"></div>
+<div class="obs" id="o94"></div>
+<div class="obs" id="o95"></div>
+<div class="obs" id="o96"></div>
+<div class="obs" id="o97"></div>
+<div class="obs" id="o98"></div>
+<div class="obs" id="o99"></div>
+<div class="obs" id="o100"></div>
+<div class="obs" id="o101"></div>
+<div class="obs" id="o102"></div>
+<div class="obs" id="o103"></div>
+<div class="obs" id="o104"></div>
+<div class="obs" id="o105"></div>
+<div class="obs" id="o106"></div>
+<div class="obs" id="o107"></div>
+<div class="obs" id="o108"></div>
+<div class="obs" id="o109"></div>
+<div class="obs" id="o110"></div>
+<div class="obs" id="o111"></div>
+<div class="obs" id="o112"></div>
+<div class="obs" id="o113"></div>
+<div class="obs" id="o114"></div>
+<div class="obs" id="o115"></div>
+<div class="obs" id="o116"></div>
+<div class="obs" id="o117"></div>
+<div class="obs" id="o118"></div>
+<div class="obs" id="o119"></div>
+<div class="obs" id="o120"></div>
+<div class="obs" id="o121"></div>
+<div class="obs" id="o122"></div>
+<div class="obs" id="o123"></div>
+<div class="obs" id="o124"></div>
+<div class="obs" id="o125"></div>
+<div class="obs" id="o126"></div>
+<div class="obs" id="o127"></div>
+<div class="obs" id="o128"></div>
+<div class="obs" id="o129"></div>
+<div class="obs" id="o130"></div>
+<div class="obs" id="o131"></div>
+      <div class="ball"></div>
+    </div>
+  </div>
+  <div class="vig"></div>
+
+  <div class="hud">
+    <div class="panel" id="score"><div class="lbl">Distance</div>
+      <div class="val"><span class="reel reel3"><span class="strip"><b>0</b><b>1</b><b>2</b><b>3</b><b>4</b><b>5</b><b>6</b><b>7</b><b>8</b><b>9</b></span></span><span
+        class="reel reel2"><span class="strip"><b>0</b><b>1</b><b>2</b><b>3</b><b>4</b><b>5</b><b>6</b><b>7</b><b>8</b><b>9</b></span></span><span
+        class="reel reel1"><span class="strip"><b>0</b><b>1</b><b>2</b><b>3</b><b>4</b><b>5</b><b>6</b><b>7</b><b>8</b><b>9</b></span></span><span
+        class="reel reel0"><span class="strip"><b>0</b><b>1</b><b>2</b><b>3</b><b>4</b><b>5</b><b>6</b><b>7</b><b>8</b><b>9</b></span></span><span class="unit">m</span></div>
+    </div>
+    <div class="hr">
+      <div class="panel" id="best"><div class="lbl">Best</div><div class="val">&mdash;</div></div>
+      <div class="panel" id="spd"><div class="lbl">Speed</div>
+        <div class="val"><span class="sreel"><span class="strip"><b>0</b><b>1</b><b>2</b><b>3</b><b>4</b><b>5</b><b>6</b><b>7</b><b>8</b><b>9</b></span></span></div>
+        <div id="spdbar"><div id="spdfill"></div></div></div>
+    </div>
+  </div>
+
+  <div class="pads">
+<div class="padrow from0"><label class="pad" for="ln0">&#9664;</label><label class="pad" for="ln1">&#9654;</label></div>
+<div class="padrow from1"><label class="pad" for="ln0">&#9664;</label><label class="pad" for="ln2">&#9654;</label></div>
+<div class="padrow from2"><label class="pad" for="ln1">&#9664;</label><label class="pad" for="ln3">&#9654;</label></div>
+<div class="padrow from3"><label class="pad" for="ln2">&#9664;</label><label class="pad" for="ln4">&#9654;</label></div>
+<div class="padrow from4"><label class="pad" for="ln3">&#9664;</label><label class="pad" for="ln4">&#9654;</label></div>
+  </div>
+<div class="gate g0"><div class="boom" id="h0"><span class="bt">WIPEOUT</span><span class="bs">You hit a block</span><span class="brow"><label class="btn retryB" for="gsB">Retry</label><label class="btn retryA" for="gsA">Retry</label><label class="btn ghost" for="gsM">Menu</label></span></div></div>
+<div class="gate g1"><div class="boom" id="h1"><span class="bt">WIPEOUT</span><span class="bs">You hit a block</span><span class="brow"><label class="btn retryB" for="gsB">Retry</label><label class="btn retryA" for="gsA">Retry</label><label class="btn ghost" for="gsM">Menu</label></span></div></div>
+<div class="gate g2"><div class="boom" id="h2"><span class="bt">WIPEOUT</span><span class="bs">You hit a block</span><span class="brow"><label class="btn retryB" for="gsB">Retry</label><label class="btn retryA" for="gsA">Retry</label><label class="btn ghost" for="gsM">Menu</label></span></div></div>
+<div class="gate g3"><div class="boom" id="h3"><span class="bt">WIPEOUT</span><span class="bs">You hit a block</span><span class="brow"><label class="btn retryB" for="gsB">Retry</label><label class="btn retryA" for="gsA">Retry</label><label class="btn ghost" for="gsM">Menu</label></span></div></div>
+<div class="gate g4"><div class="boom" id="h4"><span class="bt">WIPEOUT</span><span class="bs">You hit a block</span><span class="brow"><label class="btn retryB" for="gsB">Retry</label><label class="btn retryA" for="gsA">Retry</label><label class="btn ghost" for="gsM">Menu</label></span></div></div>
+
+  <div class="screen menu">
+    <div class="sub">Endless Downhill Runner</div>
+    <h1>SLOPE</h1>
+    <p class="tip">No JavaScript anywhere. Every pixel of motion is a CSS animation and
+      steering is a radio group &mdash; dodge the blocks, chase the orbs.</p>
+    <label class="btn" for="gsA">Play</label>
+    <div class="keys">
+      <div class="key"><div style="display:flex;gap:5px"><kbd>&#8592;</kbd><kbd>&#8594;</kbd></div><span>Steer</span></div>
+      <div class="key"><div style="display:flex;gap:5px"><kbd>Tab</kbd></div><span>Focus track</span></div>
+    </div>
+    <p class="tip">Click <b>Play</b>, then press <kbd>Tab</kbd> once &mdash; the arrow keys steer
+      from then on. The round pads work with mouse or touch at any time.</p>
+  </div>
+
+  <div class="screen pausescreen">
+    <div class="sub">Paused</div><h1 style="font-size:clamp(34px,9vw,64px)">HOLD UP</h1>
+    <label class="btn" for="pz">Resume</label>
+  </div>
+
+  <label class="btn ghost corner" for="pz">Pause</label>
+</div>
+</body>
+</html>
